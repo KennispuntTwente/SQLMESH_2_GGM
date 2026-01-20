@@ -1,0 +1,63 @@
+[project]
+name = "ggm-pipeline"
+version = "0.1.0"
+description = "GGM data pipeline using dlt and SQLMesh"
+requires-python = "== 3.12.10"
+dependencies = [
+    # dlt with destination drivers
+    # Core: postgres, mssql, duckdb, mysql (via sqlalchemy)
+    # Cloud: snowflake, bigquery, redshift, athena, databricks
+    "dlt[athena,bigquery,databricks,duckdb,mssql,postgres,redshift,snowflake,sqlalchemy]>=1.4.0",
+    # SQLMesh with database support
+    # See: https://sqlmesh.readthedocs.io/en/stable/integrations/engines/
+    "sqlmesh[bigquery,clickhouse,databricks,duckdb,lsp,mssql,mysql,postgres,redshift,snowflake,spark,trino]>=0.228.0",
+    # Source drivers
+    "oracledb>=3.2.0",
+    "pymysql>=1.1.1",
+    "pyodbc>=5.2.0",
+    "psycopg2-binary>=2.9.10",
+    "pyarrow>=18.0.0",
+    # Utilities
+    "sqlalchemy>=2.0.0",
+    "pandas>=2.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "docker>=7.1.0",
+    "pyyaml>=6.0.0",
+]
+
+[project.scripts]
+dev = "scripts.dev:main"
+pipeline = "scripts.pipeline:main"
+
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "scripts/tests", "synthetic/tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "-ra",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests (require Docker)",
+]
+filterwarnings = [
+    # Ignore deprecation warnings from third-party dependencies
+    "ignore:ast.Num is deprecated:DeprecationWarning",
+    "ignore:ast.Str is deprecated:DeprecationWarning",
+    "ignore:ast.NameConstant is deprecated:DeprecationWarning",
+    "ignore:`json_encoders` is deprecated:pydantic.warnings.PydanticDeprecatedSince20",
+]

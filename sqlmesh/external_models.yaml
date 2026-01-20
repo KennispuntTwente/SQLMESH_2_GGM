@@ -1,0 +1,88 @@
+# External models for raw tables managed by dlt
+# These tables are created by dlt pipeline and contain historical loads
+# SQLMesh uses this schema for column-level lineage tracking
+#
+# dlt automatically adds _dlt_load_id and _dlt_load_time to all tables
+# Do NOT manually add these columns in the dlt pipeline
+#
+# To regenerate from database metadata, run:
+#   uv run sqlmesh create_external_models
+
+- name: raw.abc_refcod
+  description: Reference codes table (ABC_REFCOD from Oracle CSSD)
+  columns:
+    code: text
+    domein: text
+    omschrijving: text
+    _dlt_load_id: text
+    _dlt_load_time: timestamp
+
+- name: raw.szclient
+  description: Client table (SZCLIENT from Oracle CSSD)
+  columns:
+    clientnr: bigint
+    ind_gezag: text
+    _dlt_load_id: text
+    _dlt_load_time: timestamp
+
+- name: raw.szregel
+  description: Regulation/law table (SZREGEL from Oracle CSSD)
+  columns:
+    kode_regeling: text
+    omschryving: text
+    _dlt_load_id: text
+    _dlt_load_time: timestamp
+
+- name: raw.szukhis
+  description: Payment history table (SZUKHIS from Oracle CSSD)
+  columns:
+    uniekwvdos: text
+    bedrag: double
+    verslagnr: bigint
+    _dlt_load_id: text
+    _dlt_load_time: timestamp
+
+- name: raw.szwerker
+  description: Employee/worker table (SZWERKER from Oracle CSSD)
+  columns:
+    kode_werker: text
+    naam: text
+    kode_instan: text
+    e_mail: text
+    ind_geslacht: text
+    toelichting: text
+    telefoon: text
+    _dlt_load_id: text
+    _dlt_load_time: timestamp
+
+- name: raw.wvbesl
+  description: Decision table (WVBESL from Oracle CSSD)
+  columns:
+    besluitnr: bigint
+    clientnr: bigint
+    _dlt_load_id: text
+    _dlt_load_time: timestamp
+
+- name: raw.wvdos
+  description: Case/dossier table (WVDOS from Oracle CSSD)
+  columns:
+    besluitnr: bigint
+    volgnr_ind: bigint
+    uniek: text
+    kode_reden_einde_voorz: text
+    _dlt_load_id: text
+    _dlt_load_time: timestamp
+
+- name: raw.wvind_b
+  description: Provision indication table (WVIND_B from Oracle CSSD)
+  columns:
+    besluitnr: bigint
+    volgnr_ind: bigint
+    clientnr: bigint
+    dd_begin: date
+    dd_eind: date
+    volume: double
+    status_indicatie: text
+    kode_regeling: text
+    _dlt_load_id: text
+    _dlt_load_time: timestamp

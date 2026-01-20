@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# dlt
+dlt/.dlt/secrets.toml
+dlt/.dlt/pipelines/
+
+# SQLMesh
+.sqlmesh/
+/sqlmesh/.cache
+
+# Data
+data/
+*.parquet
+*.csv
+
+# Logs
+*.log
+dlt/logs/
+sqlmesh/logs/
+
+# OS
+.DS_Store
+Thumbs.db
+/.cache
+.env

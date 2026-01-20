@@ -1,0 +1,20 @@
+MODEL (
+    name stg.wvind_b,
+    kind FULL
+);
+
+WITH latest_load AS (
+    SELECT MAX(_dlt_load_id) AS load_id FROM raw.wvind_b
+)
+SELECT
+    besluitnr,
+    volgnr_ind,
+    clientnr,
+    dd_begin,
+    dd_eind,
+    volume,
+    status_indicatie,
+    kode_regeling,
+    _dlt_load_id
+FROM raw.wvind_b
+WHERE _dlt_load_id = (SELECT load_id FROM latest_load)

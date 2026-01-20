@@ -1,0 +1,53 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info
+.eggs
+dist
+build
+*.egg
+.mypy_cache
+.pytest_cache
+.coverage
+htmlcov
+.tox
+.nox
+.venv
+venv
+ENV
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Project-specific
+*.db
+*.duckdb
+logs/
+*.log
+
+# Docker volumes (these are mounted, not copied)
+oracle-data
+postgres-data
+mssql-data
+mysql-data
+
+# Development files
+TODO.md
+.env.example
+
+# Large generated files
+*.parquet
+*.arrow
+
+# Test outputs
+.hypothesis

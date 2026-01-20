@@ -1,0 +1,41 @@
+name: Pytest (scripts)
+# Runs pytest tests for scripts/ folder
+
+# This workflow runs pytest tests for the scripts/ folder,
+# which includes tests for the schema & data validation functions,
+# which verify that the pipeline produces correct results, conforming
+# with the GGM DDL SQL specifications
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: pytest-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12.10"
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+      
+      - name: Install dependencies
+        run: uv sync --all-extras
+      
+      - name: Run pytest
+        run: uv run pytest scripts/tests/ -v

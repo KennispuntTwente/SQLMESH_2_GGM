@@ -1,0 +1,196 @@
+name: Pipeline (Oracle -> dlt -> SQLMesh -> dest)
+# Tests data loading from Oracle to various destinations and SQLMesh transformations
+
+# This workflow runs the full data pipeline from Oracle to various destinations
+# using dlt for extraction and loading, and SQLMesh for transformations
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: dest-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        destination: [postgres, mssql, duckdb, mysql]
+    
+    services:
+      oracle:
+        image: gvenzl/oracle-free:latest-faststart
+        env:
+          ORACLE_PASSWORD: test123
+          ORACLE_DATABASE: ggm
+          APP_USER: appuser
+          APP_USER_PASSWORD: apppass
+        ports:
+          - 1521:1521
+        options: --health-cmd healthcheck.sh --health-interval 10s --health-timeout 5s --health-retries 10 --health-start-period 10s
+      
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ggm
+          POSTGRES_PASSWORD: ggm
+          POSTGRES_DB: ggm_dev
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 2s --health-retries 30
+      
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          SA_PASSWORD: "Test123!"
+        ports:
+          - 1433:1433
+        options: --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Test123!' -C -Q 'SELECT 1'" --health-interval 10s --health-timeout 5s --health-retries 20 --health-start-period 30s
+      
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: Test123!
+          MYSQL_DATABASE: ggm_dev
+        ports:
+          - 3306:3306
+        options: --health-cmd "mysqladmin ping -h localhost -u root -pTest123!" --health-interval 5s --health-timeout 5s --health-retries 30
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12.10"
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+      
+      - name: Install dependencies
+        run: uv sync --all-extras
+      
+      - name: Configure APT cache directory
+        if: matrix.destination == 'mssql'
+        run: |
+          CACHE_ROOT="${RUNNER_TEMP}/apt-cache"
+          mkdir -p "$CACHE_ROOT/archives/partial"
+          {
+            echo "Dir::Cache \"$CACHE_ROOT\";";
+            echo "Dir::Cache::archives \"$CACHE_ROOT/archives\";";
+          } | sudo tee /etc/apt/apt.conf.d/99cache >/dev/null
+      
+      - name: Cache APT archives
+        if: matrix.destination == 'mssql'
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/apt-cache
+          key: apt-${{ runner.os }}-msodbcsql18-v1
+          restore-keys: apt-${{ runner.os }}-
+      
+      - name: Install ODBC Driver for SQL Server
+        if: matrix.destination == 'mssql'
+        run: |
+          curl https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee /usr/share/keyrings/microsoft.gpg >/dev/null
+          curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list >/dev/null
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
+      
+      - name: Wait for Oracle
+        run: |
+          for i in {1..60}; do
+            if uv run python -c "import oracledb; oracledb.connect(user='appuser', password='apppass', dsn='localhost:1521/ggm')" 2>/dev/null; then
+              echo "Oracle is ready"
+              break
+            fi
+            echo "Waiting for Oracle... ($i/60)"
+            sleep 5
+          done
+      
+      - name: Generate synthetic data
+        run: uv run python synthetic/generate_synthetic_data.py --out data/synthetic --rows 100
+      
+      - name: Load synthetic data to Oracle
+        run: uv run python synthetic/load_to_oracle.py --csv-dir data/synthetic --user appuser --password apppass --service-name ggm
+      
+      - name: Run dlt pipeline → ${{ matrix.destination }}
+        env:
+          # Oracle source credentials - use app user for proper reflection
+          SOURCES__SQL_DATABASE__CREDENTIALS: "oracle+oracledb://appuser:apppass@localhost:1521/?service_name=ggm"
+
+          # Postgres destination credentials
+          DESTINATION__POSTGRES__CREDENTIALS: "postgresql://ggm:ggm@localhost:5432/ggm_dev"
+          # MSSQL destination credentials
+          DESTINATION__MSSQL__CREDENTIALS: "mssql+pyodbc://sa:Test123!@localhost:1433/master?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
+          # DuckDB destination - use same file as SQLMesh config
+          DESTINATION__DUCKDB__CREDENTIALS: "ggm_dev.db"
+          # MySQL destination credentials (via SQLAlchemy destination)
+          # Use pymysql dialect since mysqlclient is not installed
+          DESTINATION__SQLALCHEMY__CREDENTIALS: "mysql+pymysql://root:Test123!@localhost:3306/ggm_dev"
+          # dlt project directory (for config lookup)
+          DLT_PROJECT_DIR: dlt
+        run: |
+          uv run python dlt/pipeline.py --dest "${{ matrix.destination }}"
+      
+      - name: SQLMesh plan and apply
+        env:
+          POSTGRES_PASSWORD: "ggm"
+          MSSQL_HOST: "localhost"
+          MSSQL_PORT: "1433"
+          MSSQL_DATABASE: "master"
+          MSSQL_USER: "sa"
+          MSSQL_PASSWORD: "Test123!"
+          MSSQL_ODBC_DRIVER: "ODBC Driver 18 for SQL Server"
+          MSSQL_TRUST_CERT: "yes"
+          MYSQL_PASSWORD: "Test123!"
+        run: |
+          GATEWAY="${{ matrix.destination }}"
+          if [ "$GATEWAY" = "postgres" ]; then
+            GATEWAY="local"
+          fi
+          uv run sqlmesh -p sqlmesh --gateway "$GATEWAY" plan --auto-apply
+      
+      - name: SQLMesh tests
+        env:
+          POSTGRES_PASSWORD: "ggm"
+          MSSQL_HOST: "localhost"
+          MSSQL_PORT: "1433"
+          MSSQL_DATABASE: "master"
+          MSSQL_USER: "sa"
+          MSSQL_PASSWORD: "Test123!"
+          MSSQL_ODBC_DRIVER: "ODBC Driver 18 for SQL Server"
+          MSSQL_TRUST_CERT: "yes"
+          MYSQL_PASSWORD: "Test123!"
+        run: |
+          GATEWAY="${{ matrix.destination }}"
+          if [ "$GATEWAY" = "postgres" ]; then
+            GATEWAY="local"
+          fi
+          uv run sqlmesh -p sqlmesh --gateway "$GATEWAY" test
+
+      - name: Validate database schema against DDL
+        env:
+          POSTGRES_PASSWORD: "ggm"
+          MSSQL_HOST: "localhost"
+          MSSQL_PORT: "1433"
+          MSSQL_DATABASE: "master"
+          MSSQL_USER: "sa"
+          MSSQL_PASSWORD: "Test123!"
+          MSSQL_ODBC_DRIVER: "ODBC Driver 18 for SQL Server"
+          MSSQL_TRUST_CERT: "yes"
+          MYSQL_PASSWORD: "Test123!"
+        run: |
+          GATEWAY="${{ matrix.destination }}"
+          if [ "$GATEWAY" = "postgres" ]; then
+            GATEWAY="local"
+          fi
+          uv run python scripts/validate_data.py --gateway "$GATEWAY" --schema silver

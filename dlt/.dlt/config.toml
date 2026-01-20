@@ -1,0 +1,16 @@
+# dlt configuration
+# See: https://dlthub.com/docs/general-usage/credentials/setup
+
+[runtime]
+log_level = "INFO"
+
+[normalize]
+# Lowercase column names for consistency
+naming_convention = "snake_case"
+
+# Note: _dlt_load_id and _dlt_id are added automatically by dlt during normalize phase.
+# No explicit configuration needed.
+# For Arrow/Parquet data: enable row-level metadata columns
+[normalize.parquet_normalizer]
+add_dlt_load_id = true
+add_dlt_id = true

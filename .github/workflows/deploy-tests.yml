@@ -1,0 +1,103 @@
+name: Deploy tests
+
+# This workflow tests if the pipeline can be properly executed with 
+#  the `uv run pipeline` command & with the Docker image
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: pipeline-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Fast tests - no Docker services needed
+  unit-tests:
+    name: Pipeline unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12.10"
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+      
+      - name: Install dependencies
+        run: uv sync --all-extras
+      
+      - name: Run fast pipeline tests
+        run: uv run pytest tests/test_pipeline.py -v -m "not slow" --tb=short
+
+  # Docker image build test
+  docker-build:
+    name: Docker image build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate docker-compose.yml
+        run: docker compose -f docker/docker-compose.yml config --quiet
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: ggm-pipeline:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Test Docker image --help
+        run: docker run --rm ggm-pipeline:test --help
+      
+      - name: Test Docker image --dry-run
+        run: docker run --rm ggm-pipeline:test --dest postgres --dry-run
+
+  # Integration tests with Docker services
+  integration-tests:
+    name: Integration tests (PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [unit-tests]  # Only run if unit tests pass
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12.10"
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+      
+      - name: Install dependencies
+        run: uv sync --all-extras
+      
+      - name: Test SQLMesh connection
+        env:
+          POSTGRES_PASSWORD: ggm_dev
+        run: |
+          uv run sqlmesh -p sqlmesh --gateway local info
+      
+      - name: Run integration tests
+        env:
+          POSTGRES_PASSWORD: ggm_dev
+        run: uv run pytest tests/test_pipeline.py::TestPipelineWithDocker -v --tb=short
