@@ -149,15 +149,17 @@ jobs:
           DESTINATION__POSTGRES__CREDENTIALS__DATABASE: ggm_dev
           DESTINATION__POSTGRES__CREDENTIALS__USERNAME: ggm
           DESTINATION__POSTGRES__CREDENTIALS__PASSWORD: ggm
-          # MSSQL (SQLMesh: driver=pyodbc, driver_name=ODBC driver)
+          # MSSQL shared credentials
           DESTINATION__MSSQL__CREDENTIALS__HOST: localhost
           DESTINATION__MSSQL__CREDENTIALS__PORT: "1433"
           DESTINATION__MSSQL__CREDENTIALS__DATABASE: master
           DESTINATION__MSSQL__CREDENTIALS__USERNAME: sa
           DESTINATION__MSSQL__CREDENTIALS__PASSWORD: "Test123!"
-          DESTINATION__MSSQL__CREDENTIALS__DRIVER: pyodbc
-          DESTINATION__MSSQL__CREDENTIALS__DRIVER_NAME: "ODBC Driver 18 for SQL Server"
-          DESTINATION__MSSQL__CREDENTIALS__TRUST_SERVER_CERTIFICATE: "true"
+          # MSSQL ODBC driver
+          DESTINATION__MSSQL__CREDENTIALS__DRIVER: "ODBC Driver 18 for SQL Server"
+          # Trust self-signed certificates (different format per tool)
+          DESTINATION__MSSQL__CREDENTIALS__QUERY__TRUSTSERVERCERTIFICATE: "yes"
+          SQLMESH__MSSQL__TRUST_SERVER_CERTIFICATE: "true"
           # MySQL (via sqlalchemy destination)
           DESTINATION__SQLALCHEMY__CREDENTIALS__HOST: localhost
           DESTINATION__SQLALCHEMY__CREDENTIALS__PORT: "3306"
@@ -167,8 +169,7 @@ jobs:
           DESTINATION__SQLALCHEMY__CREDENTIALS__DRIVERNAME: mysql+pymysql
           # DuckDB
           DESTINATION__DUCKDB__CREDENTIALS: ggm_dev.db
-        run: |
-          uv run sqlmesh -p sqlmesh --gateway "${{ matrix.destination }}" plan --auto-apply
+        run: uv run sqlmesh -p sqlmesh --gateway "${{ matrix.destination }}" plan --auto-apply
       
       - name: SQLMesh tests
         env:
@@ -178,15 +179,17 @@ jobs:
           DESTINATION__POSTGRES__CREDENTIALS__DATABASE: ggm_dev
           DESTINATION__POSTGRES__CREDENTIALS__USERNAME: ggm
           DESTINATION__POSTGRES__CREDENTIALS__PASSWORD: ggm
-          # MSSQL (SQLMesh: driver=pyodbc, driver_name=ODBC driver)
+          # MSSQL shared credentials
           DESTINATION__MSSQL__CREDENTIALS__HOST: localhost
           DESTINATION__MSSQL__CREDENTIALS__PORT: "1433"
           DESTINATION__MSSQL__CREDENTIALS__DATABASE: master
           DESTINATION__MSSQL__CREDENTIALS__USERNAME: sa
           DESTINATION__MSSQL__CREDENTIALS__PASSWORD: "Test123!"
-          DESTINATION__MSSQL__CREDENTIALS__DRIVER: pyodbc
-          DESTINATION__MSSQL__CREDENTIALS__DRIVER_NAME: "ODBC Driver 18 for SQL Server"
-          DESTINATION__MSSQL__CREDENTIALS__TRUST_SERVER_CERTIFICATE: "true"
+          # MSSQL ODBC driver
+          DESTINATION__MSSQL__CREDENTIALS__DRIVER: "ODBC Driver 18 for SQL Server"
+          # Trust self-signed certificates (different format per tool)
+          DESTINATION__MSSQL__CREDENTIALS__QUERY__TRUSTSERVERCERTIFICATE: "yes"
+          SQLMESH__MSSQL__TRUST_SERVER_CERTIFICATE: "true"
           # MySQL (via sqlalchemy destination)
           DESTINATION__SQLALCHEMY__CREDENTIALS__HOST: localhost
           DESTINATION__SQLALCHEMY__CREDENTIALS__PORT: "3306"
@@ -196,8 +199,7 @@ jobs:
           DESTINATION__SQLALCHEMY__CREDENTIALS__DRIVERNAME: mysql+pymysql
           # DuckDB
           DESTINATION__DUCKDB__CREDENTIALS: ggm_dev.db
-        run: |
-          uv run sqlmesh -p sqlmesh --gateway "${{ matrix.destination }}" test
+        run: uv run sqlmesh -p sqlmesh --gateway "${{ matrix.destination }}" test
 
       - name: Validate database schema against DDL
         env:
@@ -207,15 +209,17 @@ jobs:
           DESTINATION__POSTGRES__CREDENTIALS__DATABASE: ggm_dev
           DESTINATION__POSTGRES__CREDENTIALS__USERNAME: ggm
           DESTINATION__POSTGRES__CREDENTIALS__PASSWORD: ggm
-          # MSSQL (SQLMesh: driver=pyodbc, driver_name=ODBC driver)
+          # MSSQL shared credentials
           DESTINATION__MSSQL__CREDENTIALS__HOST: localhost
           DESTINATION__MSSQL__CREDENTIALS__PORT: "1433"
           DESTINATION__MSSQL__CREDENTIALS__DATABASE: master
           DESTINATION__MSSQL__CREDENTIALS__USERNAME: sa
           DESTINATION__MSSQL__CREDENTIALS__PASSWORD: "Test123!"
-          DESTINATION__MSSQL__CREDENTIALS__DRIVER: pyodbc
-          DESTINATION__MSSQL__CREDENTIALS__DRIVER_NAME: "ODBC Driver 18 for SQL Server"
-          DESTINATION__MSSQL__CREDENTIALS__TRUST_SERVER_CERTIFICATE: "true"
+          # MSSQL ODBC driver
+          DESTINATION__MSSQL__CREDENTIALS__DRIVER: "ODBC Driver 18 for SQL Server"
+          # Trust self-signed certificates (different format per tool)
+          DESTINATION__MSSQL__CREDENTIALS__QUERY__TRUSTSERVERCERTIFICATE: "yes"
+          SQLMESH__MSSQL__TRUST_SERVER_CERTIFICATE: "true"
           # MySQL (via sqlalchemy destination)
           DESTINATION__SQLALCHEMY__CREDENTIALS__HOST: localhost
           DESTINATION__SQLALCHEMY__CREDENTIALS__PORT: "3306"
@@ -225,5 +229,4 @@ jobs:
           DESTINATION__SQLALCHEMY__CREDENTIALS__DRIVERNAME: mysql+pymysql
           # DuckDB
           DESTINATION__DUCKDB__CREDENTIALS: ggm_dev.db
-        run: |
-          uv run python scripts/validate_data.py --gateway "${{ matrix.destination }}" --schema silver
+        run: uv run python scripts/validate_data.py --gateway "${{ matrix.destination }}" --schema silver
