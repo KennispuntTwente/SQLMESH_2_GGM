@@ -257,8 +257,9 @@ class TestPipelineWithDocker:
         """SQLMesh plan works in dry-run mode against PostgreSQL."""
         # Use 'info' command to validate SQLMesh can parse models and connect
         # This doesn't require raw tables to exist in the database
+        # Use sqlmesh CLI directly to avoid local 'sqlmesh/' directory shadowing the package
         result = subprocess.run(
-            [sys.executable, "-m", "sqlmesh", "-p", "sqlmesh", "--gateway", "local", "info"],
+            ["sqlmesh", "-p", "sqlmesh", "--gateway", "local", "info"],
             cwd=project_root,
             capture_output=True,
             text=True,

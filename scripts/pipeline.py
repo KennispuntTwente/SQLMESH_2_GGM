@@ -67,6 +67,29 @@ def _get_python_command() -> list[str]:
     return [sys.executable]
 
 
+def _get_sqlmesh_command() -> list[str]:
+    """Get the best SQLMesh command for spawning subprocesses.
+
+    Uses sqlmesh CLI directly to avoid local 'sqlmesh/' directory shadowing the package
+    when using 'python -m sqlmesh'.
+
+    Preference order:
+    1) `uv run sqlmesh` if uv is available (ensures correct venv)
+    2) `sqlmesh` CLI directly if in venv
+    """
+    uv = shutil.which("uv")
+    if uv:
+        return [uv, "run", "sqlmesh"]
+
+    # Fall back to direct sqlmesh command if in venv
+    sqlmesh = shutil.which("sqlmesh")
+    if sqlmesh:
+        return [sqlmesh]
+
+    # Last resort: try running it anyway
+    return ["sqlmesh"]
+
+
 def _detect_gateway(destination: str) -> str:
     """Auto-detect SQLMesh gateway from dlt destination."""
     return get_gateway_for_destination(destination)
@@ -132,8 +155,8 @@ def run_sqlmesh(gateway: str, auto_apply: bool, dry_run: bool, verbose: bool) ->
     print(f"  SQLMesh: Transforming raw -> stg -> silver (gateway: {gateway})")
     print(f"{'=' * 60}\n")
 
-    python_cmd = _get_python_command()
-    cmd = [*python_cmd, "-m", "sqlmesh", "-p", "sqlmesh", "--gateway", gateway, "plan"]
+    # Use sqlmesh CLI directly to avoid local 'sqlmesh/' directory shadowing the package
+    cmd = _get_sqlmesh_command() + ["-p", "sqlmesh", "--gateway", gateway, "plan"]
     if auto_apply:
         cmd.append("--auto-apply")
 
