@@ -32,7 +32,7 @@ ENV/
 *.swo
 
 # dlt
-# dlt/.dlt/secrets.toml # Tijdelijk om lege secrets.toml te committen
+dlt/.dlt/secrets.toml
 dlt/.dlt/pipelines/
 
 # SQLMesh
