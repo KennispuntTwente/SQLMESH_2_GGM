@@ -159,7 +159,7 @@ jobs:
           DESTINATION__MSSQL__CREDENTIALS__DRIVER: "ODBC Driver 18 for SQL Server"
           # Trust self-signed certificates (different format per tool)
           DESTINATION__MSSQL__CREDENTIALS__QUERY__TRUSTSERVERCERTIFICATE: "yes"
-          SQLMESH__MSSQL__TRUST_SERVER_CERTIFICATE: "true"
+          GGM_MSSQL_TRUST_SERVER_CERTIFICATE: "true"
           # MySQL (via sqlalchemy destination)
           DESTINATION__SQLALCHEMY__CREDENTIALS__HOST: localhost
           DESTINATION__SQLALCHEMY__CREDENTIALS__PORT: "3306"
@@ -189,7 +189,7 @@ jobs:
           DESTINATION__MSSQL__CREDENTIALS__DRIVER: "ODBC Driver 18 for SQL Server"
           # Trust self-signed certificates (different format per tool)
           DESTINATION__MSSQL__CREDENTIALS__QUERY__TRUSTSERVERCERTIFICATE: "yes"
-          SQLMESH__MSSQL__TRUST_SERVER_CERTIFICATE: "true"
+          GGM_MSSQL_TRUST_SERVER_CERTIFICATE: "true"
           # MySQL (via sqlalchemy destination)
           DESTINATION__SQLALCHEMY__CREDENTIALS__HOST: localhost
           DESTINATION__SQLALCHEMY__CREDENTIALS__PORT: "3306"
@@ -219,7 +219,7 @@ jobs:
           DESTINATION__MSSQL__CREDENTIALS__DRIVER: "ODBC Driver 18 for SQL Server"
           # Trust self-signed certificates (different format per tool)
           DESTINATION__MSSQL__CREDENTIALS__QUERY__TRUSTSERVERCERTIFICATE: "yes"
-          SQLMESH__MSSQL__TRUST_SERVER_CERTIFICATE: "true"
+          GGM_MSSQL_TRUST_SERVER_CERTIFICATE: "true"
           # MySQL (via sqlalchemy destination)
           DESTINATION__SQLALCHEMY__CREDENTIALS__HOST: localhost
           DESTINATION__SQLALCHEMY__CREDENTIALS__PORT: "3306"

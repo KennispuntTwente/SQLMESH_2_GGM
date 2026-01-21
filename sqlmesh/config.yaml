@@ -43,7 +43,8 @@ gateways:
       driver_name: {{ env_var('DESTINATION__MSSQL__CREDENTIALS__DRIVER', 'ODBC Driver 18 for SQL Server') }}
       # Note: env_var returns strings, but trust_server_certificate needs boolean
       # Use Jinja conditional to output YAML boolean value
-      trust_server_certificate: {% if env_var('SQLMESH__MSSQL__TRUST_SERVER_CERTIFICATE', 'true').lower() in ('true', '1', 'yes') %}true{% else %}false{% endif %}
+      # Avoid SQLMESH__ prefix as SQLMesh treats those as config overrides
+      trust_server_certificate: {% if env_var('GGM_MSSQL_TRUST_SERVER_CERTIFICATE', 'true').lower() in ('true', '1', 'yes') %}true{% else %}false{% endif %}
 
   # MySQL
   mysql:

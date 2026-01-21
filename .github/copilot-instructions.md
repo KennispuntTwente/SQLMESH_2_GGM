@@ -149,7 +149,7 @@ DESTINATION__MSSQL__CREDENTIALS__PASSWORD=xxx
 # DESTINATION__MSSQL__CREDENTIALS__DRIVER=ODBC Driver 18 for SQL Server
 # TrustServerCertificate (different format per tool):
 # DESTINATION__MSSQL__CREDENTIALS__QUERY__TRUSTSERVERCERTIFICATE=yes  # dlt
-# SQLMESH__MSSQL__TRUST_SERVER_CERTIFICATE=true                       # SQLMesh
+# GGM_MSSQL_TRUST_SERVER_CERTIFICATE=true                             # SQLMesh
 
 # Oracle thick mode (optional - required for some features)
 # ORACLE_THICK_MODE=1
