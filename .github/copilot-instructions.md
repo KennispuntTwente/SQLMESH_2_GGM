@@ -123,16 +123,29 @@ All credentials use dlt's native env var pattern. Set in `.env` file (see `.env.
 GGM_DESTINATION=postgres              # dlt destination type
 GGM_GATEWAY=local                     # SQLMesh gateway
 
-# Oracle source (Option 1: Host/Port/Service - Easy Connect)
+# Oracle source (Option 1: Host/Port/Service - Easy Connect) [RECOMMENDED]
 SOURCES__SQL_DATABASE__CREDENTIALS__HOST=localhost
 SOURCES__SQL_DATABASE__CREDENTIALS__PORT=1521
 SOURCES__SQL_DATABASE__CREDENTIALS__DATABASE=FREEPDB1
 SOURCES__SQL_DATABASE__CREDENTIALS__USERNAME=system
 SOURCES__SQL_DATABASE__CREDENTIALS__PASSWORD=xxx
 
-# Oracle source (Option 2: TNS Alias - requires tnsnames.ora)
-# SOURCES__SQL_DATABASE__CREDENTIALS__DATABASE=MYDB_ALIAS
+# Oracle source (Option 2: TNS Alias)
+# IMPORTANT: TNS_ADMIN env var does NOT work with python-oracledb thin mode!
+# The alias must be resolved to a connect descriptor first.
+# Use one of these patterns:
+
+# Pattern A: Embed the full connect descriptor directly (no tnsnames.ora needed)
+SOURCES__SQL_DATABASE__CREDENTIALS=oracle+oracledb://user:pass@?dsn=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=myhost)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=myservice)))
+
+# Pattern B: Use Easy Connect format (recommended over TNS alias)
+SOURCES__SQL_DATABASE__CREDENTIALS=oracle+oracledb://user:pass@hostname:1521/?service_name=myservice
+
+# Note: For TNS alias support with thick mode (Oracle Client libraries required):
+# ORACLE_THICK_MODE=1
+# ORACLE_CLIENT_LIB_DIR=/path/to/instantclient
 # TNS_ADMIN=/opt/oracle/network/admin
+# Then: SOURCES__SQL_DATABASE__CREDENTIALS=oracle+oracledb://username:password@TNS_ALIAS
 
 # PostgreSQL destination
 DESTINATION__POSTGRES__CREDENTIALS__HOST=localhost
@@ -151,7 +164,7 @@ DESTINATION__MSSQL__CREDENTIALS__PASSWORD=xxx
 # DESTINATION__MSSQL__CREDENTIALS__QUERY__TRUSTSERVERCERTIFICATE=yes  # dlt
 # GGM_MSSQL_TRUST_SERVER_CERTIFICATE=true                             # SQLMesh
 
-# Oracle thick mode (optional - required for some features)
+# Oracle thick mode (optional - required for TNS_ADMIN env var support)
 # ORACLE_THICK_MODE=1
 # ORACLE_CLIENT_LIB_DIR=/path/to/lib
 ```
