@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -40,7 +41,21 @@ def wait_for_oracle(timeout: int = 300) -> bool:
     return False
 
 
+def _get_sqlmesh_command() -> list[str]:
+    """Get the best SQLMesh command for spawning subprocesses."""
+    uv = shutil.which("uv")
+    if uv:
+        return [uv, "run", "sqlmesh"]
+
+    sqlmesh = shutil.which("sqlmesh")
+    if sqlmesh:
+        return [sqlmesh]
+
+    return ["sqlmesh"]
+
+
 def main() -> None:
+    project_root = Path(__file__).parent.parent
     parser = argparse.ArgumentParser(description="Quick-start dev environment")
     parser.add_argument(
         "--dest", "--destination",
@@ -60,6 +75,7 @@ def main() -> None:
         subprocess.run(
             ["docker", "compose", "-f", "docker/docker-compose.yml", 
              "up", "-d", "oracle", args.dest],
+            cwd=project_root,
             check=True,
         )
         
@@ -70,17 +86,26 @@ def main() -> None:
         print("[dev] Oracle is ready.")
     
     print("[dev] Loading synthetic data to Oracle...")
-    subprocess.run([
-        sys.executable, "synthetic/load_to_oracle.py",
-        "--user", "appuser", "--password", "apppass",
-        "--service-name", "ggm"
-    ], check=True)
+    subprocess.run(
+        [
+            sys.executable,
+            str(project_root / "synthetic" / "load_to_oracle.py"),
+            "--user",
+            "appuser",
+            "--password",
+            "apppass",
+            "--service-name",
+            "ggm",
+        ],
+        cwd=project_root,
+        check=True,
+    )
     
     print("[dev] dlt: Oracle -> %s raw layer..." % args.dest)
     
     # Set credentials matching docker-compose.yml
     env = {
-        **__import__('os').environ,
+        **os.environ,
         # Oracle source
         "SOURCES__SQL_DATABASE__CREDENTIALS": "oracle+oracledb://appuser:apppass@localhost:1521/?service_name=ggm",
         # Postgres destination
@@ -93,9 +118,10 @@ def main() -> None:
         "DESTINATION__DUCKDB__CREDENTIALS": "ggm_dev.db",
     }
     # Set DLT_PROJECT_DIR so dlt finds its .dlt/ config
-    env["DLT_PROJECT_DIR"] = "dlt"
+    env["DLT_PROJECT_DIR"] = str(project_root / "dlt")
     subprocess.run(
-        [sys.executable, "dlt/pipeline.py", "--dest", args.dest],
+        [sys.executable, str(project_root / "dlt" / "pipeline.py"), "--dest", args.dest],
+        cwd=project_root,
         check=True,
         env=env,
     )
@@ -103,25 +129,11 @@ def main() -> None:
     print("[dev] SQLMesh: raw -> stg -> silver...")
     gateway = DESTINATION_TO_GATEWAY.get(args.dest, "local")
     
-    # Add SQLMesh gateway env vars matching docker-compose
-    sqlmesh_env = {
-        **__import__('os').environ,
-        # MSSQL gateway (uses master database like dlt)
-        "MSSQL_DATABASE": "master",
-        "MSSQL_PASSWORD": "GGM_Dev123!",
-    }
+    sqlmesh_env = {**os.environ}
     subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "sqlmesh",
-            "-p",
-            "sqlmesh",
-            "--gateway",
-            gateway,
-            "plan",
-            "--auto-apply",
-        ],
+        _get_sqlmesh_command()
+        + ["-p", "sqlmesh", "--gateway", gateway, "plan", "--auto-apply"],
+        cwd=project_root,
         check=True,
         env=sqlmesh_env,
     )

@@ -23,7 +23,6 @@ DLT_DESTINATIONS = [
     "snowflake",
     "bigquery",
     "redshift",
-    "databricks",
     "athena",
 ]
 
@@ -34,13 +33,13 @@ DLT_DESTINATIONS = [
 # See: https://sqlmesh.readthedocs.io/en/stable/guides/connections/
 SQLMESH_GATEWAYS = [
     "local",  # Default PostgreSQL gateway
+    "postgres",
     "mssql",
     "mysql",
     "duckdb",
     "snowflake",
     "bigquery",
     "redshift",
-    "databricks",
     "trino",
 ]
 
@@ -57,7 +56,6 @@ DESTINATION_TO_GATEWAY = {
     "snowflake": "snowflake",
     "bigquery": "bigquery",
     "redshift": "redshift",
-    "databricks": "databricks",
 }
 
 # ============================================================================

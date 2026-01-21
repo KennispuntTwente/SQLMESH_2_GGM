@@ -9,7 +9,7 @@ Configuration:
 - Set GGM_DATASET env var to change raw dataset/schema (default: raw)
 - Or use --dataset CLI argument to override
 - Set GGM_ROW_LIMIT env var to limit rows extracted per table (for dev/testing)
-- Set GGM_DLT_BACKEND to change extraction backend: auto, pyarrow, sqlalchemy
+- Set GGM_DLT_BACKEND to change extraction backend: auto, sqlalchemy, pyarrow, pandas, connectorx
 
 Oracle Configuration (optional):
 - ORACLE_THICK_MODE=1 to enable Oracle Instant Client (thick mode)
@@ -39,7 +39,7 @@ from constants import (
     normalize_dlt_destination,
 )
 
-DLT_BACKENDS = ["auto", "pyarrow", "sqlalchemy"]
+DLT_BACKENDS = ["auto", "sqlalchemy", "pyarrow", "pandas", "connectorx"]
 
 
 def _init_oracle_thick_mode() -> None:
@@ -84,6 +84,7 @@ def get_default_destination() -> str:
 def get_default_dataset() -> str:
     return os.environ.get("GGM_DATASET", DEFAULT_DATASET)
 
+
 def get_default_backend() -> str:
     return os.environ.get("GGM_DLT_BACKEND", "auto")
 
@@ -119,16 +120,32 @@ def _resolve_backend(backend: str | None) -> str:
         )
 
     if requested == "sqlalchemy":
-        return requested
+        return "sqlalchemy"
 
-    # auto/pyarrow: try to import pyarrow to surface DLL issues with a clearer hint.
-    try:
-        import pyarrow  # noqa: F401
+    if requested == "auto":
+        try:
+            import pyarrow  # noqa: F401
 
-        return "pyarrow"
-    except Exception as e:
-        msg = str(e).strip()
-        if requested == "pyarrow":
+            return "pyarrow"
+        except Exception as e:
+            msg = str(e).strip()
+            print(f"[dlt] Warning: PyArrow backend unavailable ({type(e).__name__}: {msg})")
+            print("[dlt] Falling back to SQLAlchemy backend (slower, but more compatible).")
+            print("[dlt] Fix tips:")
+            print(
+                "      - Windows: install Microsoft Visual C++ 2015-2022 Redistributable (x64)"
+            )
+            print("      - Windows: enable long paths or move repo to a shorter path")
+            print("      - Override: set GGM_DLT_BACKEND=pyarrow to fail fast")
+            return "sqlalchemy"
+
+    if requested == "pyarrow":
+        try:
+            import pyarrow  # noqa: F401
+
+            return "pyarrow"
+        except Exception as e:
+            msg = str(e).strip()
             print(
                 f"[dlt] ERROR: PyArrow backend requested but unavailable ({type(e).__name__}: {msg})"
             )
@@ -140,16 +157,37 @@ def _resolve_backend(backend: str | None) -> str:
             print("      - Workaround: set GGM_DLT_BACKEND=sqlalchemy")
             raise
 
-        # auto: fall back.
-        print(f"[dlt] Warning: PyArrow backend unavailable ({type(e).__name__}: {msg})")
-        print("[dlt] Falling back to SQLAlchemy backend (slower, but more compatible).")
-        print("[dlt] Fix tips:")
-        print(
-            "      - Windows: install Microsoft Visual C++ 2015-2022 Redistributable (x64)"
-        )
-        print("      - Windows: enable long paths or move repo to a shorter path")
-        print("      - Override: set GGM_DLT_BACKEND=pyarrow to fail fast")
-        return "sqlalchemy"
+    if requested == "pandas":
+        try:
+            import pandas  # noqa: F401
+
+            return "pandas"
+        except Exception as e:
+            msg = str(e).strip()
+            print(
+                f"[dlt] ERROR: pandas backend requested but unavailable ({type(e).__name__}: {msg})"
+            )
+            print("[dlt] Fix tips:")
+            print("      - Install pandas (and its dependencies) in your environment")
+            print("      - Workaround: set GGM_DLT_BACKEND=sqlalchemy")
+            raise
+
+    if requested == "connectorx":
+        try:
+            import connectorx  # noqa: F401
+
+            return "connectorx"
+        except Exception as e:
+            msg = str(e).strip()
+            print(
+                f"[dlt] ERROR: connectorx backend requested but unavailable ({type(e).__name__}: {msg})"
+            )
+            print("[dlt] Fix tips:")
+            print("      - Install connectorx in your environment (e.g. `uv add connectorx`)")
+            print("      - Workaround: set GGM_DLT_BACKEND=sqlalchemy")
+            raise
+
+    return "sqlalchemy"
 
 
 def run_pipeline(
@@ -215,7 +253,7 @@ def main() -> None:
         "--backend",
         default=None,
         choices=DLT_BACKENDS,
-        help="Extraction backend (default: $GGM_DLT_BACKEND or auto). Choices: auto, pyarrow, sqlalchemy",
+        help="Extraction backend (default: $GGM_DLT_BACKEND or auto). Choices: auto, sqlalchemy, pyarrow, pandas, connectorx",
     )
     args = parser.parse_args()
     run_pipeline(destination=args.dest, dataset_name=args.dataset, backend=args.backend)

@@ -204,7 +204,7 @@ Examples:
     parser.add_argument(
         "--dlt-backend",
         default=None,
-        choices=["auto", "pyarrow", "sqlalchemy"],
+        choices=["auto", "sqlalchemy", "pyarrow", "pandas", "connectorx"],
         metavar="BACKEND",
         help="dlt extraction backend (env: GGM_DLT_BACKEND, default: auto)",
     )
