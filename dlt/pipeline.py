@@ -8,6 +8,7 @@ Configuration:
 - Or use --dest CLI argument to override
 - Set GGM_DATASET env var to change raw dataset/schema (default: raw)
 - Or use --dataset CLI argument to override
+- Set GGM_ROW_LIMIT env var to limit rows extracted per table (for dev/testing)
 
 Oracle Configuration (optional):
 - ORACLE_THICK_MODE=1 to enable Oracle Instant Client (thick mode)
@@ -81,6 +82,23 @@ def get_default_dataset() -> str:
     return os.environ.get("GGM_DATASET", DEFAULT_DATASET)
 
 
+def get_row_limit() -> int | None:
+    """Get optional row limit from GGM_ROW_LIMIT env var.
+
+    Returns None if not set or invalid, otherwise the integer limit.
+    Useful for development/testing with large source tables.
+    """
+    limit_str = os.environ.get("GGM_ROW_LIMIT", "").strip()
+    if not limit_str:
+        return None
+    try:
+        limit = int(limit_str)
+        return limit if limit > 0 else None
+    except ValueError:
+        print(f"[dlt] Warning: Invalid GGM_ROW_LIMIT '{limit_str}', ignoring")
+        return None
+
+
 def run_pipeline(
     destination: str | None = None,
     dataset_name: str | None = None,
@@ -104,10 +122,20 @@ def run_pipeline(
         dataset_name=dataset_name,
     )
 
+    # Check for optional row limit (useful for dev/testing)
+    row_limit = get_row_limit()
+    if row_limit:
+        print(f"[dlt] Row limit enabled: {row_limit} rows per table")
+
     source = sql_database(
         table_names=SOURCE_TABLES,
         backend="pyarrow",  # Fast, native
     )
+
+    # Apply row limit using dlt's native add_limit method
+    # count_rows=True ensures we limit by actual rows, not chunks/pages
+    if row_limit:
+        source = source.add_limit(max_items=row_limit, count_rows=True)
 
     # dlt automatically adds _dlt_load_id during normalize phase
     load_info = pipeline.run(source, write_disposition="append")
