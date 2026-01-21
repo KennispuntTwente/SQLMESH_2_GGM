@@ -22,14 +22,14 @@ uv run dev                                 # Full dev setup: Docker + Oracle + d
 uv run dev --dest mssql                    # Dev with MSSQL target
 uv run pipeline --dest postgres            # Production pipeline
 uv run pipeline --dest postgres --dry-run  # Preview commands
-uv run sqlmesh plan --auto-apply           # Apply SQLMesh transformations
+uv run sqlmesh -p sqlmesh plan --auto-apply  # Apply SQLMesh transformations
 uv run python scripts/validate_schema.py   # Validate silver vs DDL (runs in CI)
 uv run pytest                              # Run all tests
 ```
 
 ## SQL Model Patterns
 
-### Staging (`models/stg/stg_*.sql`)
+### Staging (`sqlmesh/models/stg/*.sql`)
 ```sql
 MODEL (name stg.tablename, kind FULL);
 
@@ -39,13 +39,17 @@ FROM raw.tablename
 WHERE _dlt_load_id = (SELECT load_id FROM latest_load)
 ```
 
-### Silver (`models/silver/*.sql`)
+### Silver (`sqlmesh/models/silver/*.sql`)
 ```sql
-MODEL (name silver.tablename, kind FULL);
+MODEL (name silver.tablename, kind FULL,
+    description 'GGM table description',
+    grains primary_key_column,
+    references (fk_column_id)
+);
 
 SELECT
-    source_col AS dutch_ggm_column,           -- Match DDL exactly
-    CAST(NULL AS VARCHAR(80)) AS optional_col -- Nullable columns with correct type
+    CAST(source_col AS INT) AS dutch_ggm_column,  -- Match DDL column name exactly
+    CAST(NULL AS VARCHAR(80)) AS optional_col     -- Nullable columns with correct type
 FROM stg.source_table
 ```
 
@@ -53,21 +57,33 @@ FROM stg.source_table
 
 1. **SQL Dialect**: SQLGlot-compatible only. Use `COALESCE` not `NVL`, `CONCAT` not `||`.
 2. **Column Names**: Silver columns must match `ggm/selectie/cssd/*.sql` DDL exactly (case-insensitive).
-3. **Audits**: Constraints become non-blocking audits in `audits/` (not enforced in silver).
+3. **Audits**: DDL constraints become non-blocking audits in `sqlmesh/audits/` (not enforced in silver).
 4. **Dependencies**: Use `uv` exclusively. Never `pip install`.
+5. **SQLMesh Path**: Always use `-p sqlmesh` when running sqlmesh CLI directly.
 
 ## Adding New Tables
 
-1. Add to `SOURCE_TABLES` list in `pipelines/source_to_raw.py`
-2. Add external model definition to `external_models.yaml` (or run `sqlmesh create_external_models`)
-3. Create `models/stg/stg_tablename.sql` with `_dlt_load_id` filter pattern
-4. Create `models/silver/tablename.sql` mapping to GGM columns
-5. Create `audits/tablename.sql` for PK/constraint validations
+1. Add table name (lowercase) to `SOURCE_TABLES` list in `dlt/pipeline.py`
+2. Add external model definition to `sqlmesh/external_models.yaml`
+3. Create `sqlmesh/models/stg/tablename.sql` with `_dlt_load_id` filter pattern
+4. Create `sqlmesh/models/silver/tablename.sql` mapping to GGM columns
+5. Create `sqlmesh/audits/tablename.sql` for PK/constraint validations
 6. Run `uv run python scripts/validate_schema.py` to verify
+
+## DDL-to-Model Generation
+
+Generate SQLMesh models from GGM DDL files:
+```bash
+# Dry-run to preview
+uv run python scripts/ddl_to_sqlmesh.py --ddl-dir ggm/selectie/cssd --dry-run
+
+# Generate models
+uv run python scripts/ddl_to_sqlmesh.py --ddl-dir ggm/selectie/cssd --output-dir sqlmesh/models/silver
+```
 
 ## External Models
 
-Raw tables are managed by dlt and defined as external models in `external_models.yaml`:
+Raw tables are managed by dlt and defined as external models in `sqlmesh/external_models.yaml`:
 
 ```yaml
 - name: raw.tablename
@@ -80,71 +96,46 @@ Raw tables are managed by dlt and defined as external models in `external_models
 
 **Commands:**
 ```bash
-uv run sqlmesh create_external_models  # Auto-generate from database metadata
+uv run sqlmesh -p sqlmesh create_external_models  # Auto-generate from database metadata
 ```
-
-**Manual additions:** Place in `external_models/` directory to avoid overwriting by `create_external_models`.
 
 ## File Reference
 
 | Path | Purpose |
 |------|---------|
-| `pipelines/source_to_raw.py` | dlt pipeline (`SOURCE_TABLES` list) |
-| `pipelines/constants.py` | Destination/gateway mappings |
-| `external_models.yaml` | External model definitions for `raw.*` tables |
-| `external_models/` | Manual external model additions (not overwritten) |
-| `models/stg/stg_*.sql` | Staging models (latest load filter) |
-| `models/silver/*.sql` | GGM transformations |
-| `audits/*.sql` | Non-blocking constraint checks |
+| `dlt/pipeline.py` | dlt pipeline (`SOURCE_TABLES` list) |
+| `dlt/constants.py` | Destination/gateway mappings |
+| `sqlmesh/external_models.yaml` | External model definitions for `raw.*` tables |
+| `sqlmesh/models/stg/*.sql` | Staging models (latest load filter) |
+| `sqlmesh/models/silver/*.sql` | GGM transformations |
+| `sqlmesh/audits/*.sql` | Non-blocking constraint checks |
+| `sqlmesh/config.yaml` | SQLMesh gateways (postgres/mssql/mysql/duckdb) |
 | `ggm/selectie/cssd/*.sql` | **Authoritative DDL** (validation source) |
-| `config.yaml` | SQLMesh gateways (local/mssql/mysql/duckdb) |
+| `scripts/ddl_parser.py` | Shared DDL parsing utilities |
 | `scripts/validate_schema.py` | CI validation against DDL |
+| `scripts/ddl_to_sqlmesh.py` | DDL to SQLMesh model converter |
 
 ## Gateway vs Destination Mapping
 
-dlt destinations map to SQLMesh gateways via `pipelines/constants.py`:
+dlt destinations map to SQLMesh gateways via `dlt/constants.py`:
 
 | dlt `--dest` | SQLMesh gateway | Notes |
 |--------------|-----------------|-------|
-| `postgres` | `local` | Default dev setup |
-| `mssql` | `mssql` | SQL Server |
-| `mysql` | `mysql` | MySQL |
+| `postgres` | `postgres` | Default dev setup |
+| `mssql` | `mssql` | SQL Server (requires ODBC driver) |
+| `mysql` | `mysql` | MySQL (dlt uses `sqlalchemy` internally) |
 | `duckdb` | `duckdb` | No server needed, local file |
 | `snowflake` | `snowflake` | Cloud (configure in `config.yaml`) |
 
-To add a new destination: update `DLT_DESTINATIONS`, `SQLMESH_GATEWAYS`, and `DESTINATION_TO_GATEWAY` in `pipelines/constants.py`, then add gateway config to `config.yaml`.
+To add a new destination: update `DLT_DESTINATIONS`, `SQLMESH_GATEWAYS`, and `DESTINATION_TO_GATEWAY` in `dlt/constants.py`, then add gateway config to `sqlmesh/config.yaml`.
 
 ## Environment Configuration
 
 All credentials use dlt's native env var pattern. Set in `.env` file (see `.env.example`):
 
 ```bash
-# Pipeline settings
-GGM_DESTINATION=postgres              # dlt/SQLMesh destination (gateway auto-detected)
-
-# Oracle source (Option 1: Host/Port/Service - Easy Connect) [RECOMMENDED]
-SOURCES__SQL_DATABASE__CREDENTIALS__HOST=localhost
-SOURCES__SQL_DATABASE__CREDENTIALS__PORT=1521
-SOURCES__SQL_DATABASE__CREDENTIALS__DATABASE=FREEPDB1
-SOURCES__SQL_DATABASE__CREDENTIALS__USERNAME=system
-SOURCES__SQL_DATABASE__CREDENTIALS__PASSWORD=xxx
-
-# Oracle source (Option 2: TNS Alias)
-# IMPORTANT: TNS_ADMIN env var does NOT work with python-oracledb thin mode!
-# The alias must be resolved to a connect descriptor first.
-# Use one of these patterns:
-
-# Pattern A: Embed the full connect descriptor directly (no tnsnames.ora needed)
-SOURCES__SQL_DATABASE__CREDENTIALS=oracle+oracledb://user:pass@?dsn=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=myhost)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=myservice)))
-
-# Pattern B: Use Easy Connect format (recommended over TNS alias)
+# Oracle source (Easy Connect format - recommended)
 SOURCES__SQL_DATABASE__CREDENTIALS=oracle+oracledb://user:pass@hostname:1521/?service_name=myservice
-
-# Note: For TNS alias support with thick mode (Oracle Client libraries required):
-# ORACLE_THICK_MODE=1
-# ORACLE_CLIENT_LIB_DIR=/path/to/instantclient
-# TNS_ADMIN=/opt/oracle/network/admin
-# Then: SOURCES__SQL_DATABASE__CREDENTIALS=oracle+oracledb://username:password@TNS_ALIAS
 
 # PostgreSQL destination
 DESTINATION__POSTGRES__CREDENTIALS__HOST=localhost
@@ -152,20 +143,11 @@ DESTINATION__POSTGRES__CREDENTIALS__DATABASE=ggm_dev
 DESTINATION__POSTGRES__CREDENTIALS__USERNAME=ggm
 DESTINATION__POSTGRES__CREDENTIALS__PASSWORD=xxx
 
-# MSSQL destination (requires Microsoft ODBC Driver for SQL Server)
-# Both dlt and SQLMesh use the same ODBC driver
+# MSSQL destination
 DESTINATION__MSSQL__CREDENTIALS__HOST=localhost
 DESTINATION__MSSQL__CREDENTIALS__DATABASE=ggm_dev
 DESTINATION__MSSQL__CREDENTIALS__USERNAME=sa
 DESTINATION__MSSQL__CREDENTIALS__PASSWORD=xxx
-# DESTINATION__MSSQL__CREDENTIALS__DRIVER=ODBC Driver 18 for SQL Server
-# TrustServerCertificate (different format per tool):
-# DESTINATION__MSSQL__CREDENTIALS__QUERY__TRUSTSERVERCERTIFICATE=yes  # dlt
-# GGM_MSSQL_TRUST_SERVER_CERTIFICATE=true                             # SQLMesh
-
-# Oracle thick mode (optional - required for TNS_ADMIN env var support)
-# ORACLE_THICK_MODE=1
-# ORACLE_CLIENT_LIB_DIR=/path/to/lib
 ```
 
 ## Docker Development
@@ -173,10 +155,6 @@ DESTINATION__MSSQL__CREDENTIALS__PASSWORD=xxx
 `docker/docker-compose.yml` provides Oracle source + target DBs:
 
 ```bash
-# Start containers manually
-docker compose -f docker/docker-compose.yml up -d oracle postgres
-
-# Or use the dev script (handles wait + data load)
 uv run dev --dest postgres            # Starts Docker, waits for Oracle, loads synthetic data
 uv run dev --skip-docker              # Skip Docker if already running
 ```
@@ -189,12 +167,8 @@ Oracle startup takes 2-3 minutes. The `dev` script automatically waits and loads
 uv run pytest                         # All tests
 uv run pytest -m "not integration"    # Unit tests only (no Docker)
 uv run pytest -m integration          # Integration tests (require Docker)
-uv run pytest -m "not slow"           # Skip slow tests
 ```
 
-Test locations:
-- `tests/` - Pipeline integration tests
-- `scripts/tests/` - Validation script unit tests
-- `synthetic/tests/` - Synthetic data tests
+Test locations: `tests/` (pipeline), `scripts/tests/` (validation), `synthetic/tests/` (data generation)
 
 Markers defined in `pyproject.toml`: `@pytest.mark.integration`, `@pytest.mark.slow`
