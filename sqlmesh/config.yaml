@@ -31,6 +31,8 @@ gateways:
       password: {{ env_var('DESTINATION__POSTGRES__CREDENTIALS__PASSWORD', 'ggm_dev') }}
 
   # MSSQL
+  # Note: driver defaults to 'pymssql'. Set DESTINATION__MSSQL__CREDENTIALS__DRIVER=pyodbc to use ODBC.
+  # odbc_properties only apply when driver=pyodbc
   mssql:
     connection:
       type: mssql
@@ -39,9 +41,9 @@ gateways:
       database: {{ env_var('DESTINATION__MSSQL__CREDENTIALS__DATABASE', 'ggm_dev') }}
       user: {{ env_var('DESTINATION__MSSQL__CREDENTIALS__USERNAME', 'sa') }}
       password: {{ env_var('DESTINATION__MSSQL__CREDENTIALS__PASSWORD', 'GGM_Dev123!') }}
-      driver: {{ env_var('DESTINATION__MSSQL__CREDENTIALS__DRIVER', '') }}
-      odbc_properties:
-        TrustServerCertificate: {{ env_var('DESTINATION__MSSQL__CREDENTIALS__QUERY__TRUSTSERVERCERTIFICATE', 'yes') }}
+      driver: {{ env_var('DESTINATION__MSSQL__CREDENTIALS__DRIVER', 'pymssql') }}
+      driver_name: {{ env_var('DESTINATION__MSSQL__CREDENTIALS__DRIVER_NAME', 'ODBC Driver 18 for SQL Server') }}
+      trust_server_certificate: {{ env_var('DESTINATION__MSSQL__CREDENTIALS__TRUST_SERVER_CERTIFICATE', 'false') }}
 
   # MySQL
   mysql:
