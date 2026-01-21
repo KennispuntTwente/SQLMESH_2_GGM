@@ -590,28 +590,54 @@ def get_gateway_config(gateway_name: str) -> tuple[str, dict[str, Any]]:
     import os
     import re
     from pathlib import Path
-    
+
     import yaml
-    
+
     # Find config.yaml in sqlmesh/ directory
     project_root = Path(__file__).parent.parent
     config_path = project_root / "sqlmesh" / "config.yaml"
-    
+
     if not config_path.exists():
         raise ValueError(f"SQLMesh config not found: {config_path}")
-    
+
     content = config_path.read_text(encoding="utf-8")
-    
+
     # Handle Jinja2-style env_var substitutions
     def replace_env_var(match: re.Match) -> str:
         groups = match.groups()
         var_name = groups[0]
         default_value = groups[1] if len(groups) > 1 else ""
         return os.environ.get(var_name, default_value.strip("'\"") if default_value else "")
-    
+
     # Pattern: {{ env_var('VAR_NAME', 'default') }} or {{ env_var('VAR_NAME') }}
     pattern = r"\{\{\s*env_var\s*\(\s*'([^']+)'(?:\s*,\s*([^)]+))?\s*\)\s*\}\}"
     content = re.sub(pattern, replace_env_var, content)
+
+    # Handle Jinja2 conditionals: {% if ... %}value{% else %}other{% endif %}
+    # This pattern extracts the "if true" value from simple conditionals
+    def replace_jinja_conditional(match: re.Match) -> str:
+        condition = match.group(1)
+        true_value = match.group(2)
+        false_value = match.group(3) if match.group(3) else ""
+        
+        # Try to evaluate simple env_var conditions
+        env_match = re.search(r"env_var\s*\(\s*'([^']+)'(?:\s*,\s*'([^']+)')?\s*\)", condition)
+        if env_match:
+            var_name = env_match.group(1)
+            default = env_match.group(2) or ""
+            value = os.environ.get(var_name, default).lower()
+            # Check for truthy values
+            if "true" in condition or "'1'" in condition or "'yes'" in condition:
+                if value in ("true", "1", "yes"):
+                    return true_value.strip()
+                else:
+                    return false_value.strip()
+        # Default to true value if we can't evaluate
+        return true_value.strip()
+
+    # Pattern: {% if ... %}...{% else %}...{% endif %} or {% if ... %}...{% endif %}
+    jinja_pattern = r"\{%\s*if\s+(.+?)\s*%\}(.+?)(?:\{%\s*else\s*%\}(.+?))?\{%\s*endif\s*%\}"
+    content = re.sub(jinja_pattern, replace_jinja_conditional, content)
     
     config = yaml.safe_load(content)
     
