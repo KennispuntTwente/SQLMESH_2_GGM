@@ -86,7 +86,7 @@ def main() -> None:
         # Postgres destination
         "DESTINATION__POSTGRES__CREDENTIALS": "postgresql://ggm:ggm_dev@localhost:5432/ggm_dev",
         # MSSQL destination
-        "DESTINATION__MSSQL__CREDENTIALS": "mssql+pyodbc://sa:GGM_Dev123!@localhost:1433/master?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes",
+        "DESTINATION__MSSQL__CREDENTIALS": "mssql+pyodbc://sa:GGM_Dev123!@localhost:1433/ggm_dev?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes",
         # MySQL destination (via sqlalchemy destination)
         "DESTINATION__SQLALCHEMY__CREDENTIALS": "mysql+pymysql://root:ggm_dev@localhost:3306/ggm_dev",
         # DuckDB
