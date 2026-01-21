@@ -12,7 +12,7 @@ Usage:
     uv run pipeline --dest postgres --dry-run          # Preview what would run
 
 Environment variables (or set in .env):
-    GGM_GATEWAY      - SQLMesh gateway (default: matches --dest where possible)
+    GGM_GATEWAY      - SQLMesh gateway override (default: auto-detected from --dest)
     GGM_DATASET      - Dataset/schema name for raw layer (default: raw)
 """
 
@@ -38,9 +38,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "dlt"))
 from constants import (
     DLT_DESTINATIONS,
     SQLMESH_GATEWAYS,
-    DESTINATION_TO_GATEWAY,
-    DEFAULT_GATEWAY,
     DEFAULT_DATASET,
+    get_gateway_for_destination,
 )
 
 
@@ -49,22 +48,28 @@ def get_env(key: str, default: str | None) -> str | None:
     return os.environ.get(key, default)
 
 
-def _get_uv_command() -> list[str]:
-    """Get uv run command prefix for spawning subprocesses.
+def _get_python_command() -> list[str]:
+    """Get the best Python command for spawning subprocesses.
 
-    Using 'uv run' ensures proper virtual environment activation
-    and resolves Windows DLL loading issues with packages like PyArrow.
+    Preference order:
+    1) Current interpreter when already in a venv (most reliable, avoids wrappers)
+    2) `uv run python` if uv is available (bootstrap from any shell)
+    3) Current interpreter as last resort
     """
+    in_venv = bool(os.environ.get("VIRTUAL_ENV")) or sys.prefix != sys.base_prefix
+    if in_venv:
+        return [sys.executable]
+
     uv = shutil.which("uv")
     if uv:
-        return [uv, "run"]
-    # Fallback to direct python if uv not found
+        return [uv, "run", "python"]
+
     return [sys.executable]
 
 
 def _detect_gateway(destination: str) -> str:
     """Auto-detect SQLMesh gateway from dlt destination."""
-    return DESTINATION_TO_GATEWAY.get(destination, DEFAULT_GATEWAY)
+    return get_gateway_for_destination(destination)
 
 
 def run_command(cmd: list[str], dry_run: bool = False, verbose: bool = False) -> int:
@@ -81,23 +86,30 @@ def run_command(cmd: list[str], dry_run: bool = False, verbose: bool = False) ->
     return result.returncode
 
 
-def run_dlt(destination: str, dataset: str, dry_run: bool, verbose: bool) -> int:
+def run_dlt(
+    destination: str,
+    dataset: str,
+    backend: str | None,
+    dry_run: bool,
+    verbose: bool,
+) -> int:
     """Run dlt pipeline: source -> raw layer."""
     print(f"\n{'=' * 60}")
     print(f"  dlt: Extracting source -> {destination}.{dataset}")
     print(f"{'=' * 60}\n")
 
     dlt_dir = Path(__file__).parent.parent / "dlt"
-    # Use uv run to ensure proper environment activation (fixes Windows DLL issues)
+    python_cmd = _get_python_command()
     cmd = [
-        *_get_uv_command(),
-        "python",
+        *python_cmd,
         str(dlt_dir / "pipeline.py"),
         "--dest",
         destination,
         "--dataset",
         dataset,
     ]
+    if backend:
+        cmd.extend(["--backend", backend])
 
     if dry_run:
         cmd_str = " ".join(cmd)
@@ -120,8 +132,8 @@ def run_sqlmesh(gateway: str, auto_apply: bool, dry_run: bool, verbose: bool) ->
     print(f"  SQLMesh: Transforming raw -> stg -> silver (gateway: {gateway})")
     print(f"{'=' * 60}\n")
 
-    # Use uv run to ensure proper environment activation (fixes Windows DLL issues)
-    cmd = [*_get_uv_command(), "sqlmesh", "-p", "sqlmesh", "--gateway", gateway, "plan"]
+    python_cmd = _get_python_command()
+    cmd = [*python_cmd, "-m", "sqlmesh", "-p", "sqlmesh", "--gateway", gateway, "plan"]
     if auto_apply:
         cmd.append("--auto-apply")
 
@@ -166,6 +178,13 @@ Examples:
         metavar="NAME",
         help="Dataset/schema name for raw layer (env: GGM_DATASET, default: raw)",
     )
+    parser.add_argument(
+        "--dlt-backend",
+        default=None,
+        choices=["auto", "pyarrow", "sqlalchemy"],
+        metavar="BACKEND",
+        help="dlt extraction backend (env: GGM_DLT_BACKEND, default: auto)",
+    )
 
     # Skip options
     parser.add_argument(
@@ -209,6 +228,7 @@ Examples:
         args.gateway or get_env("GGM_GATEWAY", None) or _detect_gateway(destination)
     )
     dataset = args.dataset or get_env("GGM_DATASET", DEFAULT_DATASET)
+    dlt_backend = args.dlt_backend or get_env("GGM_DLT_BACKEND", "auto")
     auto_apply = not args.no_auto_apply
 
     # Print configuration
@@ -218,6 +238,7 @@ Examples:
     print(f"  Destination : {destination}")
     print(f"  Gateway     : {gateway}")
     print(f"  Dataset     : {dataset}")
+    print(f"  dlt backend : {dlt_backend}")
     print(f"  dlt         : {'skip' if args.skip_dlt else 'run'}")
     print(f"  SQLMesh     : {'skip' if args.skip_sqlmesh else 'run'}")
     print(f"  Auto-apply  : {auto_apply}")
@@ -229,7 +250,7 @@ Examples:
 
     # Run dlt
     if not args.skip_dlt:
-        rc = run_dlt(destination, dataset, args.dry_run, args.verbose)
+        rc = run_dlt(destination, dataset, dlt_backend, args.dry_run, args.verbose)
         if rc != 0:
             print(f"\n[!] dlt failed with exit code {rc}")
             return rc
@@ -245,7 +266,9 @@ Examples:
     print("\n" + "=" * 60)
     print("  Pipeline complete!")
     print("=" * 60)
-    print(f"\n  Explore with: uv run sqlmesh -p sqlmesh --gateway {gateway} ui")
+    print(
+        f"\n  Explore with: uv run sqlmesh -p sqlmesh --gateway {gateway} ui"
+    )
     print(
         f'  Query data:   uv run sqlmesh -p sqlmesh --gateway {gateway} fetchdf "SELECT * FROM silver.client LIMIT 10"'
     )

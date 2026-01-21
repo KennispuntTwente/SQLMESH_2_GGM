@@ -79,5 +79,9 @@ def normalize_dlt_destination(destination: str) -> str:
 # Defaults
 # ============================================================================
 DEFAULT_DESTINATION = "postgres"
-DEFAULT_GATEWAY = "local"
 DEFAULT_DATASET = "raw"
+
+
+def get_gateway_for_destination(destination: str) -> str:
+    """Auto-detect SQLMesh gateway from dlt destination."""
+    return DESTINATION_TO_GATEWAY.get(destination, destination)

@@ -1,7 +1,7 @@
 """dlt pipeline: source -> raw layer with historical tracking.
 
 Uses dlt's native functionality - _dlt_load_id is added automatically
-during the normalize phase. Uses pyarrow for performance.
+during the normalize phase. Uses pyarrow for performance when available.
 
 Configuration:
 - Set GGM_DESTINATION env var to change default target
@@ -9,6 +9,7 @@ Configuration:
 - Set GGM_DATASET env var to change raw dataset/schema (default: raw)
 - Or use --dataset CLI argument to override
 - Set GGM_ROW_LIMIT env var to limit rows extracted per table (for dev/testing)
+- Set GGM_DLT_BACKEND to change extraction backend: auto, pyarrow, sqlalchemy
 
 Oracle Configuration (optional):
 - ORACLE_THICK_MODE=1 to enable Oracle Instant Client (thick mode)
@@ -37,6 +38,8 @@ from constants import (
     DLT_DESTINATIONS,
     normalize_dlt_destination,
 )
+
+DLT_BACKENDS = ["auto", "pyarrow", "sqlalchemy"]
 
 
 def _init_oracle_thick_mode() -> None:
@@ -81,6 +84,9 @@ def get_default_destination() -> str:
 def get_default_dataset() -> str:
     return os.environ.get("GGM_DATASET", DEFAULT_DATASET)
 
+def get_default_backend() -> str:
+    return os.environ.get("GGM_DLT_BACKEND", "auto")
+
 
 def get_row_limit() -> int | None:
     """Get optional row limit from GGM_ROW_LIMIT env var.
@@ -99,13 +105,62 @@ def get_row_limit() -> int | None:
         return None
 
 
+def _resolve_backend(backend: str | None) -> str:
+    """Resolve dlt sql_database backend with a safe fallback.
+
+    On some systems (especially Windows), PyArrow/other native dependencies can
+    fail to load due to missing system runtimes or path-length limitations.
+    Using the SQLAlchemy backend is slower but avoids PyArrow.
+    """
+    requested = (backend or get_default_backend()).strip().lower()
+    if requested not in DLT_BACKENDS:
+        raise ValueError(
+            f"Invalid backend '{requested}'. Expected one of: {', '.join(DLT_BACKENDS)}"
+        )
+
+    if requested == "sqlalchemy":
+        return requested
+
+    # auto/pyarrow: try to import pyarrow to surface DLL issues with a clearer hint.
+    try:
+        import pyarrow  # noqa: F401
+
+        return "pyarrow"
+    except Exception as e:
+        msg = str(e).strip()
+        if requested == "pyarrow":
+            print(
+                f"[dlt] ERROR: PyArrow backend requested but unavailable ({type(e).__name__}: {msg})"
+            )
+            print("[dlt] Fix tips:")
+            print(
+                "      - Windows: install Microsoft Visual C++ 2015-2022 Redistributable (x64)"
+            )
+            print("      - Windows: enable long paths or move repo to a shorter path")
+            print("      - Workaround: set GGM_DLT_BACKEND=sqlalchemy")
+            raise
+
+        # auto: fall back.
+        print(f"[dlt] Warning: PyArrow backend unavailable ({type(e).__name__}: {msg})")
+        print("[dlt] Falling back to SQLAlchemy backend (slower, but more compatible).")
+        print("[dlt] Fix tips:")
+        print(
+            "      - Windows: install Microsoft Visual C++ 2015-2022 Redistributable (x64)"
+        )
+        print("      - Windows: enable long paths or move repo to a shorter path")
+        print("      - Override: set GGM_DLT_BACKEND=pyarrow to fail fast")
+        return "sqlalchemy"
+
+
 def run_pipeline(
     destination: str | None = None,
     dataset_name: str | None = None,
+    backend: str | None = None,
 ) -> dlt_lib.Pipeline:
     """Run dlt pipeline: source -> raw layer."""
     destination = destination or get_default_destination()
     dataset_name = dataset_name or get_default_dataset()
+    backend = _resolve_backend(backend)
 
     # Normalize destination name (e.g., 'mysql' -> 'sqlalchemy')
     dlt_destination = normalize_dlt_destination(destination)
@@ -129,7 +184,7 @@ def run_pipeline(
 
     source = sql_database(
         table_names=SOURCE_TABLES,
-        backend="pyarrow",  # Fast, native
+        backend=backend,
     )
 
     # Apply row limit using dlt's native add_limit method
@@ -156,8 +211,14 @@ def main() -> None:
         default=None,
         help="Dataset/schema name (default: $GGM_DATASET or raw)",
     )
+    parser.add_argument(
+        "--backend",
+        default=None,
+        choices=DLT_BACKENDS,
+        help="Extraction backend (default: $GGM_DLT_BACKEND or auto). Choices: auto, pyarrow, sqlalchemy",
+    )
     args = parser.parse_args()
-    run_pipeline(destination=args.dest, dataset_name=args.dataset)
+    run_pipeline(destination=args.dest, dataset_name=args.dataset, backend=args.backend)
 
 
 if __name__ == "__main__":

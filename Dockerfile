@@ -56,8 +56,8 @@ COPY . .
 ENV PYTHONPATH=/app
 
 # Default environment variables (can be overridden)
+# Gateway is auto-detected from destination
 ENV GGM_DESTINATION=postgres
-ENV GGM_GATEWAY=local
 
 # Healthcheck - verify Python and key modules are available
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

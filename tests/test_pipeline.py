@@ -258,7 +258,7 @@ class TestPipelineWithDocker:
         # Use 'info' command to validate SQLMesh can parse models and connect
         # This doesn't require raw tables to exist in the database
         result = subprocess.run(
-            ["sqlmesh", "-p", "sqlmesh", "--gateway", "local", "info"],
+            [sys.executable, "-m", "sqlmesh", "-p", "sqlmesh", "--gateway", "local", "info"],
             cwd=project_root,
             capture_output=True,
             text=True,

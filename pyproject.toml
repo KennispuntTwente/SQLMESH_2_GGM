@@ -35,6 +35,7 @@ dev = [
 [project.scripts]
 dev = "scripts.dev:main"
 pipeline = "scripts.pipeline:main"
+doctor = "scripts.doctor:main"
 
 [build-system]
 requires = ["hatchling>=1.27.0"]

@@ -111,12 +111,25 @@ def main() -> None:
         "MSSQL_PASSWORD": "GGM_Dev123!",
     }
     subprocess.run(
-        ["sqlmesh", "-p", "sqlmesh", "--gateway", gateway, "plan", "--auto-apply"],
+        [
+            sys.executable,
+            "-m",
+            "sqlmesh",
+            "-p",
+            "sqlmesh",
+            "--gateway",
+            gateway,
+            "plan",
+            "--auto-apply",
+        ],
         check=True,
         env=sqlmesh_env,
     )
     
-    print("[dev] Done! Run 'sqlmesh -p sqlmesh --gateway %s ui' to explore." % gateway)
+    print(
+        "[dev] Done! Run 'uv run sqlmesh -p sqlmesh --gateway %s ui' to explore."
+        % gateway
+    )
 
 
 if __name__ == "__main__":

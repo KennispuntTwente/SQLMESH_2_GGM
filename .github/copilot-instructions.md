@@ -120,8 +120,7 @@ All credentials use dlt's native env var pattern. Set in `.env` file (see `.env.
 
 ```bash
 # Pipeline settings
-GGM_DESTINATION=postgres              # dlt destination type
-GGM_GATEWAY=local                     # SQLMesh gateway
+GGM_DESTINATION=postgres              # dlt/SQLMesh destination (gateway auto-detected)
 
 # Oracle source (Option 1: Host/Port/Service - Easy Connect) [RECOMMENDED]
 SOURCES__SQL_DATABASE__CREDENTIALS__HOST=localhost
