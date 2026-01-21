@@ -1,5 +1,4 @@
-# dlt configuration
-# See: https://dlthub.com/docs/general-usage/credentials/setup
+# dlt-configuratie
 
 [runtime]
 log_level = "INFO"
