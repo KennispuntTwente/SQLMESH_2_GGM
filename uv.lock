@@ -616,7 +616,7 @@ dependencies = [
     { name = "pyodbc" },
     { name = "python-dotenv" },
     { name = "sqlalchemy" },
-    { name = "sqlmesh", extra = ["bigquery", "clickhouse", "lsp", "mssql", "mysql", "postgres", "redshift", "snowflake", "trino"] },
+    { name = "sqlmesh", extra = ["bigquery", "clickhouse", "lsp", "mssql", "mssql-odbc", "mysql", "postgres", "redshift", "snowflake", "trino"] },
 ]
 
 [package.optional-dependencies]
@@ -640,7 +640,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pyyaml", marker = "extra == 'dev'", specifier = ">=6.0.0" },
     { name = "sqlalchemy", specifier = ">=2.0.0" },
-    { name = "sqlmesh", extras = ["bigquery", "clickhouse", "duckdb", "lsp", "mssql", "mysql", "postgres", "redshift", "snowflake", "trino"], specifier = ">=0.228.0" },
+    { name = "sqlmesh", extras = ["bigquery", "clickhouse", "duckdb", "lsp", "mssql", "mssql-odbc", "mysql", "postgres", "redshift", "snowflake", "trino"], specifier = ">=0.228.0" },
 ]
 provides-extras = ["dev"]
 
@@ -2336,6 +2336,9 @@ lsp = [
 ]
 mssql = [
     { name = "pymssql" },
+]
+mssql-odbc = [
+    { name = "pyodbc" },
 ]
 mysql = [
     { name = "pymysql" },

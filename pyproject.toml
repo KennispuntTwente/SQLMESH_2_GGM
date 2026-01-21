@@ -12,7 +12,7 @@ dependencies = [
     # SQLMesh with database support
     # See: https://sqlmesh.readthedocs.io/en/stable/integrations/engines/
     # Note: databricks excluded due to package conflict
-    "sqlmesh[bigquery,clickhouse,duckdb,lsp,mssql,mysql,postgres,redshift,snowflake,trino]>=0.228.0",
+    "sqlmesh[bigquery,clickhouse,duckdb,lsp,mssql,mssql-odbc,mysql,postgres,redshift,snowflake,trino]>=0.228.0",
     # Source drivers
     "oracledb>=3.2.0",
     "pymysql>=1.1.1",
