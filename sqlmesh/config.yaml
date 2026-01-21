@@ -1,64 +1,73 @@
 # SQLMesh project configuration
 # See: https://sqlmesh.readthedocs.io/en/stable/guides/configuration/
+#
+# All gateways use the same env vars as dlt: DESTINATION__<TYPE>__CREDENTIALS__*
 
 gateways:
-  # Local development with PostgreSQL
+  # Local development with PostgreSQL (default)
   local:
     connection:
       type: postgres
-      host: {{ env_var('POSTGRES_HOST', 'localhost') }}
-      port: {{ env_var('POSTGRES_PORT', '5432') }}
-      database: {{ env_var('POSTGRES_DATABASE', 'ggm_dev') }}
-      user: {{ env_var('POSTGRES_USER', 'ggm') }}
-      password: {{ env_var('POSTGRES_PASSWORD', 'ggm_dev') }}
+      host: {{ env_var('DESTINATION__POSTGRES__CREDENTIALS__HOST', 'localhost') }}
+      port: {{ env_var('DESTINATION__POSTGRES__CREDENTIALS__PORT', '5432') }}
+      database: {{ env_var('DESTINATION__POSTGRES__CREDENTIALS__DATABASE', 'ggm_dev') }}
+      user: {{ env_var('DESTINATION__POSTGRES__CREDENTIALS__USERNAME', 'ggm') }}
+      password: {{ env_var('DESTINATION__POSTGRES__CREDENTIALS__PASSWORD', 'ggm_dev') }}
 
   # Local development with DuckDB (no server needed)
   duckdb:
     connection:
       type: duckdb
-      database: ggm_dev.db
+      database: {{ env_var('DESTINATION__DUCKDB__CREDENTIALS', 'ggm_dev.db') }}
 
-  # Local development with MSSQL
+  # PostgreSQL
+  postgres:
+    connection:
+      type: postgres
+      host: {{ env_var('DESTINATION__POSTGRES__CREDENTIALS__HOST', 'localhost') }}
+      port: {{ env_var('DESTINATION__POSTGRES__CREDENTIALS__PORT', '5432') }}
+      database: {{ env_var('DESTINATION__POSTGRES__CREDENTIALS__DATABASE', 'ggm_dev') }}
+      user: {{ env_var('DESTINATION__POSTGRES__CREDENTIALS__USERNAME', 'ggm') }}
+      password: {{ env_var('DESTINATION__POSTGRES__CREDENTIALS__PASSWORD', 'ggm_dev') }}
+
+  # MSSQL
   mssql:
     connection:
       type: mssql
-      host: {{ env_var('MSSQL_HOST', 'localhost') }}
-      port: {{ env_var('MSSQL_PORT', '1433') }}
-      database: {{ env_var('MSSQL_DATABASE', 'ggm_dev') }}
-      user: {{ env_var('MSSQL_USER', 'sa') }}
-      password: {{ env_var('MSSQL_PASSWORD', 'GGM_Dev123!') }}
-      # ODBC driver configuration (for pyodbc driver)
-      # Default driver is pymssql; set driver: odbc to use ODBC
-      # driver: odbc
-      # driver_name: {{ env_var('MSSQL_ODBC_DRIVER', 'ODBC Driver 18 for SQL Server') }}
-      # odbc_properties:
-      #   TrustServerCertificate: {{ env_var('MSSQL_TRUST_CERT', 'yes') }}
+      host: {{ env_var('DESTINATION__MSSQL__CREDENTIALS__HOST', 'localhost') }}
+      port: {{ env_var('DESTINATION__MSSQL__CREDENTIALS__PORT', '1433') }}
+      database: {{ env_var('DESTINATION__MSSQL__CREDENTIALS__DATABASE', 'ggm_dev') }}
+      user: {{ env_var('DESTINATION__MSSQL__CREDENTIALS__USERNAME', 'sa') }}
+      password: {{ env_var('DESTINATION__MSSQL__CREDENTIALS__PASSWORD', 'GGM_Dev123!') }}
+      driver: {{ env_var('DESTINATION__MSSQL__CREDENTIALS__DRIVER', '') }}
+      odbc_properties:
+        TrustServerCertificate: {{ env_var('DESTINATION__MSSQL__CREDENTIALS__QUERY__TRUSTSERVERCERTIFICATE', 'yes') }}
 
-  # Local development with MySQL
+  # MySQL
   mysql:
     connection:
       type: mysql
-      host: {{ env_var('MYSQL_HOST', 'localhost') }}
-      port: {{ env_var('MYSQL_PORT', '3306') }}
-      database: {{ env_var('MYSQL_DATABASE', 'ggm_dev') }}
-      user: {{ env_var('MYSQL_USER', 'root') }}
-      password: {{ env_var('MYSQL_PASSWORD', 'ggm_dev') }}
+      host: {{ env_var('DESTINATION__SQLALCHEMY__CREDENTIALS__HOST', 'localhost') }}
+      port: {{ env_var('DESTINATION__SQLALCHEMY__CREDENTIALS__PORT', '3306') }}
+      database: {{ env_var('DESTINATION__SQLALCHEMY__CREDENTIALS__DATABASE', 'ggm_dev') }}
+      user: {{ env_var('DESTINATION__SQLALCHEMY__CREDENTIALS__USERNAME', 'root') }}
+      password: {{ env_var('DESTINATION__SQLALCHEMY__CREDENTIALS__PASSWORD', 'ggm_dev') }}
 
   # Cloud gateways - uncomment and configure as needed
   # snowflake:
   #   connection:
   #     type: snowflake
-  #     account: your_account
-  #     user: your_user
-  #     password: your_password
-  #     database: GGM_DEV
-  #     warehouse: COMPUTE_WH
+  #     account: {{ env_var('DESTINATION__SNOWFLAKE__CREDENTIALS__ACCOUNT', '') }}
+  #     user: {{ env_var('DESTINATION__SNOWFLAKE__CREDENTIALS__USERNAME', '') }}
+  #     password: {{ env_var('DESTINATION__SNOWFLAKE__CREDENTIALS__PASSWORD', '') }}
+  #     database: {{ env_var('DESTINATION__SNOWFLAKE__CREDENTIALS__DATABASE', '') }}
+  #     warehouse: {{ env_var('DESTINATION__SNOWFLAKE__CREDENTIALS__WAREHOUSE', '') }}
   #
   # bigquery:
   #   connection:
   #     type: bigquery
-  #     project: your-gcp-project
-  #     location: EU
+  #     project: {{ env_var('DESTINATION__BIGQUERY__CREDENTIALS__PROJECT_ID', '') }}
+  #     location: {{ env_var('DESTINATION__BIGQUERY__CREDENTIALS__LOCATION', 'EU') }}
 
 default_gateway: local
 

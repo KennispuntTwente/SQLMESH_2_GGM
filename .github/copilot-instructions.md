@@ -116,21 +116,41 @@ To add a new destination: update `DLT_DESTINATIONS`, `SQLMESH_GATEWAYS`, and `DE
 
 ## Environment Configuration
 
-Set in `.env` file or as environment variables (see `.env.example`):
+All credentials use dlt's native env var pattern. Set in `.env` file (see `.env.example`):
 
 ```bash
-# Required for production
-GGM_DESTINATION=postgres              # Default dlt destination
-SQLMESH_POSTGRES_PASSWORD=xxx         # Gateway passwords
+# Pipeline settings
+GGM_DESTINATION=postgres              # dlt destination type
+GGM_GATEWAY=local                     # SQLMesh gateway
 
-# Oracle source (optional)
-ORACLE_THICK_MODE=1                   # Enable Oracle Instant Client
-ORACLE_CLIENT_LIB_DIR=/path/to/lib    # Thick mode library path
-TNS_ADMIN=/path/to/tnsnames           # TNS resolution
+# Oracle source (Option 1: Host/Port/Service - Easy Connect)
+SOURCES__SQL_DATABASE__CREDENTIALS__HOST=localhost
+SOURCES__SQL_DATABASE__CREDENTIALS__PORT=1521
+SOURCES__SQL_DATABASE__CREDENTIALS__DATABASE=FREEPDB1
+SOURCES__SQL_DATABASE__CREDENTIALS__USERNAME=system
+SOURCES__SQL_DATABASE__CREDENTIALS__PASSWORD=xxx
 
-# Database credentials (per destination)
-SQLMESH_MSSQL_PASSWORD=xxx
-SQLMESH_MYSQL_PASSWORD=xxx
+# Oracle source (Option 2: TNS Alias - requires tnsnames.ora)
+# SOURCES__SQL_DATABASE__CREDENTIALS__DATABASE=MYDB_ALIAS
+# TNS_ADMIN=/opt/oracle/network/admin
+
+# PostgreSQL destination
+DESTINATION__POSTGRES__CREDENTIALS__HOST=localhost
+DESTINATION__POSTGRES__CREDENTIALS__DATABASE=ggm_dev
+DESTINATION__POSTGRES__CREDENTIALS__USERNAME=ggm
+DESTINATION__POSTGRES__CREDENTIALS__PASSWORD=xxx
+
+# MSSQL destination (with optional ODBC settings)
+DESTINATION__MSSQL__CREDENTIALS__HOST=localhost
+DESTINATION__MSSQL__CREDENTIALS__DATABASE=ggm_dev
+DESTINATION__MSSQL__CREDENTIALS__USERNAME=sa
+DESTINATION__MSSQL__CREDENTIALS__PASSWORD=xxx
+# DESTINATION__MSSQL__CREDENTIALS__DRIVER=ODBC Driver 18 for SQL Server
+# DESTINATION__MSSQL__CREDENTIALS__QUERY__TRUSTSERVERCERTIFICATE=yes
+
+# Oracle thick mode (optional - required for some features)
+# ORACLE_THICK_MODE=1
+# ORACLE_CLIENT_LIB_DIR=/path/to/lib
 ```
 
 ## Docker Development

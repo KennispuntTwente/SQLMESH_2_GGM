@@ -143,54 +143,84 @@ jobs:
       
       - name: SQLMesh plan and apply
         env:
-          POSTGRES_PASSWORD: "ggm"
-          MSSQL_HOST: "localhost"
-          MSSQL_PORT: "1433"
-          MSSQL_DATABASE: "master"
-          MSSQL_USER: "sa"
-          MSSQL_PASSWORD: "Test123!"
-          MSSQL_ODBC_DRIVER: "ODBC Driver 18 for SQL Server"
-          MSSQL_TRUST_CERT: "yes"
-          MYSQL_PASSWORD: "Test123!"
+          # PostgreSQL (local gateway)
+          DESTINATION__POSTGRES__CREDENTIALS__HOST: localhost
+          DESTINATION__POSTGRES__CREDENTIALS__PORT: "5432"
+          DESTINATION__POSTGRES__CREDENTIALS__DATABASE: ggm_dev
+          DESTINATION__POSTGRES__CREDENTIALS__USERNAME: ggm
+          DESTINATION__POSTGRES__CREDENTIALS__PASSWORD: ggm
+          # MSSQL
+          DESTINATION__MSSQL__CREDENTIALS__HOST: localhost
+          DESTINATION__MSSQL__CREDENTIALS__PORT: "1433"
+          DESTINATION__MSSQL__CREDENTIALS__DATABASE: master
+          DESTINATION__MSSQL__CREDENTIALS__USERNAME: sa
+          DESTINATION__MSSQL__CREDENTIALS__PASSWORD: "Test123!"
+          DESTINATION__MSSQL__CREDENTIALS__DRIVER: "ODBC Driver 18 for SQL Server"
+          DESTINATION__MSSQL__CREDENTIALS__QUERY__TRUSTSERVERCERTIFICATE: "yes"
+          # MySQL (via sqlalchemy destination)
+          DESTINATION__SQLALCHEMY__CREDENTIALS__HOST: localhost
+          DESTINATION__SQLALCHEMY__CREDENTIALS__PORT: "3306"
+          DESTINATION__SQLALCHEMY__CREDENTIALS__DATABASE: ggm_dev
+          DESTINATION__SQLALCHEMY__CREDENTIALS__USERNAME: root
+          DESTINATION__SQLALCHEMY__CREDENTIALS__PASSWORD: "Test123!"
+          DESTINATION__SQLALCHEMY__CREDENTIALS__DRIVERNAME: mysql+pymysql
+          # DuckDB
+          DESTINATION__DUCKDB__CREDENTIALS: ggm_dev.db
         run: |
-          GATEWAY="${{ matrix.destination }}"
-          if [ "$GATEWAY" = "postgres" ]; then
-            GATEWAY="local"
-          fi
-          uv run sqlmesh -p sqlmesh --gateway "$GATEWAY" plan --auto-apply
+          uv run sqlmesh -p sqlmesh --gateway "${{ matrix.destination }}" plan --auto-apply
       
       - name: SQLMesh tests
         env:
-          POSTGRES_PASSWORD: "ggm"
-          MSSQL_HOST: "localhost"
-          MSSQL_PORT: "1433"
-          MSSQL_DATABASE: "master"
-          MSSQL_USER: "sa"
-          MSSQL_PASSWORD: "Test123!"
-          MSSQL_ODBC_DRIVER: "ODBC Driver 18 for SQL Server"
-          MSSQL_TRUST_CERT: "yes"
-          MYSQL_PASSWORD: "Test123!"
+          # PostgreSQL (local gateway)
+          DESTINATION__POSTGRES__CREDENTIALS__HOST: localhost
+          DESTINATION__POSTGRES__CREDENTIALS__PORT: "5432"
+          DESTINATION__POSTGRES__CREDENTIALS__DATABASE: ggm_dev
+          DESTINATION__POSTGRES__CREDENTIALS__USERNAME: ggm
+          DESTINATION__POSTGRES__CREDENTIALS__PASSWORD: ggm
+          # MSSQL
+          DESTINATION__MSSQL__CREDENTIALS__HOST: localhost
+          DESTINATION__MSSQL__CREDENTIALS__PORT: "1433"
+          DESTINATION__MSSQL__CREDENTIALS__DATABASE: master
+          DESTINATION__MSSQL__CREDENTIALS__USERNAME: sa
+          DESTINATION__MSSQL__CREDENTIALS__PASSWORD: "Test123!"
+          DESTINATION__MSSQL__CREDENTIALS__DRIVER: "ODBC Driver 18 for SQL Server"
+          DESTINATION__MSSQL__CREDENTIALS__QUERY__TRUSTSERVERCERTIFICATE: "yes"
+          # MySQL (via sqlalchemy destination)
+          DESTINATION__SQLALCHEMY__CREDENTIALS__HOST: localhost
+          DESTINATION__SQLALCHEMY__CREDENTIALS__PORT: "3306"
+          DESTINATION__SQLALCHEMY__CREDENTIALS__DATABASE: ggm_dev
+          DESTINATION__SQLALCHEMY__CREDENTIALS__USERNAME: root
+          DESTINATION__SQLALCHEMY__CREDENTIALS__PASSWORD: "Test123!"
+          DESTINATION__SQLALCHEMY__CREDENTIALS__DRIVERNAME: mysql+pymysql
+          # DuckDB
+          DESTINATION__DUCKDB__CREDENTIALS: ggm_dev.db
         run: |
-          GATEWAY="${{ matrix.destination }}"
-          if [ "$GATEWAY" = "postgres" ]; then
-            GATEWAY="local"
-          fi
-          uv run sqlmesh -p sqlmesh --gateway "$GATEWAY" test
+          uv run sqlmesh -p sqlmesh --gateway "${{ matrix.destination }}" test
 
       - name: Validate database schema against DDL
         env:
-          POSTGRES_PASSWORD: "ggm"
-          MSSQL_HOST: "localhost"
-          MSSQL_PORT: "1433"
-          MSSQL_DATABASE: "master"
-          MSSQL_USER: "sa"
-          MSSQL_PASSWORD: "Test123!"
-          MSSQL_ODBC_DRIVER: "ODBC Driver 18 for SQL Server"
-          MSSQL_TRUST_CERT: "yes"
-          MYSQL_PASSWORD: "Test123!"
+          # PostgreSQL (local gateway)
+          DESTINATION__POSTGRES__CREDENTIALS__HOST: localhost
+          DESTINATION__POSTGRES__CREDENTIALS__PORT: "5432"
+          DESTINATION__POSTGRES__CREDENTIALS__DATABASE: ggm_dev
+          DESTINATION__POSTGRES__CREDENTIALS__USERNAME: ggm
+          DESTINATION__POSTGRES__CREDENTIALS__PASSWORD: ggm
+          # MSSQL
+          DESTINATION__MSSQL__CREDENTIALS__HOST: localhost
+          DESTINATION__MSSQL__CREDENTIALS__PORT: "1433"
+          DESTINATION__MSSQL__CREDENTIALS__DATABASE: master
+          DESTINATION__MSSQL__CREDENTIALS__USERNAME: sa
+          DESTINATION__MSSQL__CREDENTIALS__PASSWORD: "Test123!"
+          DESTINATION__MSSQL__CREDENTIALS__DRIVER: "ODBC Driver 18 for SQL Server"
+          DESTINATION__MSSQL__CREDENTIALS__QUERY__TRUSTSERVERCERTIFICATE: "yes"
+          # MySQL (via sqlalchemy destination)
+          DESTINATION__SQLALCHEMY__CREDENTIALS__HOST: localhost
+          DESTINATION__SQLALCHEMY__CREDENTIALS__PORT: "3306"
+          DESTINATION__SQLALCHEMY__CREDENTIALS__DATABASE: ggm_dev
+          DESTINATION__SQLALCHEMY__CREDENTIALS__USERNAME: root
+          DESTINATION__SQLALCHEMY__CREDENTIALS__PASSWORD: "Test123!"
+          DESTINATION__SQLALCHEMY__CREDENTIALS__DRIVERNAME: mysql+pymysql
+          # DuckDB
+          DESTINATION__DUCKDB__CREDENTIALS: ggm_dev.db
         run: |
-          GATEWAY="${{ matrix.destination }}"
-          if [ "$GATEWAY" = "postgres" ]; then
-            GATEWAY="local"
-          fi
-          uv run python scripts/validate_data.py --gateway "$GATEWAY" --schema silver
+          uv run python scripts/validate_data.py --gateway "${{ matrix.destination }}" --schema silver

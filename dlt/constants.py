@@ -3,6 +3,7 @@
 All destination and gateway options are defined here to ensure consistency
 across the codebase.
 """
+
 from __future__ import annotations
 
 # ============================================================================
@@ -17,7 +18,7 @@ DLT_DESTINATIONS = [
     "postgres",
     "mssql",
     "duckdb",
-    "mysql",       # User-friendly alias → maps to 'sqlalchemy' for dlt
+    "mysql",  # User-friendly alias → maps to 'sqlalchemy' for dlt
     "sqlalchemy",  # Generic SQLAlchemy (used for MySQL)
     "snowflake",
     "bigquery",
@@ -48,7 +49,7 @@ SQLMESH_GATEWAYS = [
 # ============================================================================
 # Maps dlt destinations to SQLMesh gateways for auto-detection.
 DESTINATION_TO_GATEWAY = {
-    "postgres": "local",  # 'local' gateway uses PostgreSQL
+    "postgres": "postgres",  # PostgreSQL gateway
     "mssql": "mssql",
     "mysql": "mysql",
     "sqlalchemy": "mysql",  # dlt's sqlalchemy destination → SQLMesh mysql gateway
