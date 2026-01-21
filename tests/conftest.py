@@ -1,6 +1,7 @@
 """Pytest fixtures for pipeline integration tests."""
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import time
@@ -53,6 +54,43 @@ def wait_for_postgres(host: str = "localhost", port: int = 5432, timeout: int = 
             pass
         time.sleep(1)
     return False
+
+
+def wait_for_container_healthy(container_id: str, timeout: int = 420) -> bool:
+    """Wait for a Docker container to report a healthy status."""
+    start = time.time()
+    while time.time() - start < timeout:
+        result = subprocess.run(
+            ["docker", "inspect", "-f", "{{.State.Health.Status}}", container_id],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        status = result.stdout.strip()
+        if status == "healthy":
+            return True
+        if status == "unhealthy":
+            return False
+        time.sleep(5)
+    return False
+
+
+def get_container_network(container_id: str) -> str:
+    """Return the first Docker network name the container is attached to."""
+    result = subprocess.run(
+        ["docker", "inspect", container_id],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=True,
+    )
+    data = json.loads(result.stdout)[0]
+    networks: dict[str, object] = (
+        data.get("NetworkSettings", {}).get("Networks", {})  # type: ignore[assignment]
+    )
+    if not networks:
+        raise RuntimeError(f"No networks found for container: {container_id}")
+    return next(iter(networks.keys()))
 
 
 @pytest.fixture(scope="session")
@@ -111,3 +149,39 @@ def docker_services(
     #     ["docker", "compose", "-f", compose_file, "down"],
     #     cwd=project_root,
     # )
+
+
+@pytest.fixture(scope="session")
+def oracle_service(
+    docker_available: bool,
+    compose_file: str,
+    project_root: str,
+) -> dict[str, str]:
+    """Ensure the Oracle service is running and healthy; return container info."""
+    if not docker_available:
+        pytest.skip("Docker is not available")
+
+    subprocess.run(
+        ["docker", "compose", "-f", compose_file, "up", "-d", "oracle"],
+        cwd=project_root,
+        check=True,
+    )
+
+    container_id = subprocess.run(
+        ["docker", "compose", "-f", compose_file, "ps", "-q", "oracle"],
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=True,
+    ).stdout.strip()
+    if not container_id:
+        pytest.fail("Oracle container did not start (no container id found)")
+
+    if not wait_for_container_healthy(container_id):
+        pytest.fail("Oracle did not become healthy in time")
+
+    return {
+        "container_id": container_id,
+        "network": get_container_network(container_id),
+    }
