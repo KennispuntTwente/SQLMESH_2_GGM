@@ -6,23 +6,22 @@ requires-python = "== 3.12.10"
 dependencies = [
     # dlt with destination drivers
     # Core: postgres, mssql, duckdb, mysql (via sqlalchemy)
-    # Cloud: snowflake, bigquery, redshift, athena
-    # Note: databricks excluded due to package conflict (databricks-sql-connector vs databricks-sdk)
-    "dlt[athena,bigquery,duckdb,mssql,postgres,redshift,snowflake,sqlalchemy]>=1.4.0",
-    # SQLMesh with database support
-    # See: https://sqlmesh.readthedocs.io/en/stable/integrations/engines/
-    # Note: databricks excluded due to package conflict
-    "sqlmesh[bigquery,clickhouse,duckdb,lsp,mssql,mssql-odbc,mysql,postgres,redshift,snowflake,trino]>=0.228.0",
+    "dlt[duckdb,mssql,postgres,sqlalchemy]>=1.4.0",
+    # SQLMesh for transformations
+    "sqlmesh[duckdb,mssql,mssql-odbc,mysql,postgres]>=0.228.5",
     # Source drivers
     "oracledb>=3.2.0",
     "pymysql>=1.1.1",
     "pyodbc>=5.2.0",
-    "psycopg2-binary>=2.9.10",
+    "psycopg2>=2.9.11",
+    "psycopg2-binary>=2.9.11",
     "pyarrow>=18.0.0",
-    # Utilities
+    "connectorx>=0.4.5",
     "sqlalchemy>=2.0.0",
     "pandas>=2.0.0",
+    # Utilities
     "python-dotenv>=1.0.0",
+    "numpy>=2.4.1",    
 ]
 
 [project.optional-dependencies]
