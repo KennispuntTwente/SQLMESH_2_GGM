@@ -4,9 +4,6 @@
 A simple one-liner to run the complete pipeline with configurable options.
 Supports environment variables and command line arguments.
 
-This script runs everything in a single Python process (no subprocess spawning)
-for maximum compatibility across environments.
-
 Usage:
     uv run pipeline --dest postgres                    # Full pipeline to PostgreSQL
     uv run pipeline --dest snowflake --gateway snowflake  # Snowflake
@@ -23,6 +20,8 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -34,10 +33,8 @@ try:
 except ImportError:
     pass  # python-dotenv not required if env vars are set directly
 
-# Add dlt folder to path for imports
+# Import constants - add dlt folder to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "dlt"))
-
-# Import constants
 from constants import (
     DLT_DESTINATIONS,
     SQLMESH_GATEWAYS,
@@ -52,90 +49,83 @@ def get_env(key: str, default: str | None) -> str | None:
     return os.environ.get(key, default)
 
 
+def _get_uv_command() -> list[str]:
+    """Get uv run command prefix for spawning subprocesses.
+
+    Using 'uv run' ensures proper virtual environment activation
+    and resolves Windows DLL loading issues with packages like PyArrow.
+    """
+    uv = shutil.which("uv")
+    if uv:
+        return [uv, "run"]
+    # Fallback to direct python if uv not found
+    return [sys.executable]
+
+
 def _detect_gateway(destination: str) -> str:
     """Auto-detect SQLMesh gateway from dlt destination."""
     return DESTINATION_TO_GATEWAY.get(destination, DEFAULT_GATEWAY)
 
 
-def run_dlt(destination: str, dataset: str, dry_run: bool, verbose: bool) -> bool:
-    """Run dlt pipeline: source -> raw layer.
+def run_command(cmd: list[str], dry_run: bool = False, verbose: bool = False) -> int:
+    """Run a command, optionally in dry-run mode."""
+    cmd_str = " ".join(cmd)
+    if dry_run:
+        print(f"[dry-run] Would run: {cmd_str}")
+        return 0
 
-    Returns True on success, False on failure.
-    """
+    if verbose:
+        print(f"[run] {cmd_str}")
+
+    result = subprocess.run(cmd)
+    return result.returncode
+
+
+def run_dlt(destination: str, dataset: str, dry_run: bool, verbose: bool) -> int:
+    """Run dlt pipeline: source -> raw layer."""
     print(f"\n{'=' * 60}")
     print(f"  dlt: Extracting source -> {destination}.{dataset}")
     print(f"{'=' * 60}\n")
 
+    dlt_dir = Path(__file__).parent.parent / "dlt"
+    # Use uv run to ensure proper environment activation (fixes Windows DLL issues)
+    cmd = [
+        *_get_uv_command(),
+        "python",
+        str(dlt_dir / "pipeline.py"),
+        "--dest",
+        destination,
+        "--dataset",
+        dataset,
+    ]
+
     if dry_run:
-        print("[dry-run] Would run dlt pipeline")
-        print(f"[dry-run]   destination: {destination}")
-        print(f"[dry-run]   dataset: {dataset}")
-        return True
+        cmd_str = " ".join(cmd)
+        print(f"[dry-run] Would run: {cmd_str}")
+        print(f"[dry-run] With DLT_PROJECT_DIR={dlt_dir}")
+        return 0
+
+    if verbose:
+        print(f"[run] {' '.join(cmd)}")
 
     # Set DLT_PROJECT_DIR so dlt finds its .dlt/ config
-    dlt_dir = Path(__file__).parent.parent / "dlt"
-    os.environ["DLT_PROJECT_DIR"] = str(dlt_dir)
-
-    try:
-        # Import and run dlt pipeline directly (no subprocess)
-        from pipeline import run_pipeline as dlt_run_pipeline
-
-        if verbose:
-            print(f"[dlt] Running pipeline: {destination}.{dataset}")
-
-        dlt_run_pipeline(destination=destination, dataset_name=dataset)
-        return True
-    except Exception as e:
-        print(f"\n[!] dlt pipeline failed: {e}")
-        if verbose:
-            import traceback
-
-            traceback.print_exc()
-        return False
+    env = {**os.environ, "DLT_PROJECT_DIR": str(dlt_dir)}
+    result = subprocess.run(cmd, env=env)
+    return result.returncode
 
 
-def run_sqlmesh(gateway: str, auto_apply: bool, dry_run: bool, verbose: bool) -> bool:
-    """Run SQLMesh: raw -> stg -> silver.
-
-    Returns True on success, False on failure.
-    """
+def run_sqlmesh(gateway: str, auto_apply: bool, dry_run: bool, verbose: bool) -> int:
+    """Run SQLMesh: raw -> stg -> silver."""
     print(f"\n{'=' * 60}")
     print(f"  SQLMesh: Transforming raw -> stg -> silver (gateway: {gateway})")
     print(f"{'=' * 60}\n")
 
-    if dry_run:
-        print("[dry-run] Would run SQLMesh plan")
-        print(f"[dry-run]   gateway: {gateway}")
-        print(f"[dry-run]   auto_apply: {auto_apply}")
-        return True
+    # Use uv run to ensure proper environment activation (fixes Windows DLL issues)
+    cmd = [*_get_uv_command(), "sqlmesh", "-p", "sqlmesh", "--gateway", gateway, "plan"]
+    if auto_apply:
+        cmd.append("--auto-apply")
 
-    try:
-        # Import SQLMesh Context and run directly (no subprocess)
-        from sqlmesh import Context
-
-        sqlmesh_dir = Path(__file__).parent.parent / "sqlmesh"
-
-        if verbose:
-            print(f"[sqlmesh] Loading context from: {sqlmesh_dir}")
-            print(f"[sqlmesh] Gateway: {gateway}")
-
-        # Create SQLMesh context with specified gateway
-        ctx = Context(paths=str(sqlmesh_dir), gateway=gateway)
-
-        if verbose:
-            print("[sqlmesh] Running plan...")
-
-        # Run plan with auto_apply setting
-        ctx.plan(auto_apply=auto_apply)
-
-        return True
-    except Exception as e:
-        print(f"\n[!] SQLMesh failed: {e}")
-        if verbose:
-            import traceback
-
-            traceback.print_exc()
-        return False
+    return run_command(cmd, dry_run=dry_run, verbose=verbose)
 
 
 def main() -> int:
@@ -239,17 +229,17 @@ Examples:
 
     # Run dlt
     if not args.skip_dlt:
-        success = run_dlt(destination, dataset, args.dry_run, args.verbose)
-        if not success:
-            print("\n[!] dlt failed")
-            return 1
+        rc = run_dlt(destination, dataset, args.dry_run, args.verbose)
+        if rc != 0:
+            print(f"\n[!] dlt failed with exit code {rc}")
+            return rc
 
     # Run SQLMesh
     if not args.skip_sqlmesh:
-        success = run_sqlmesh(gateway, auto_apply, args.dry_run, args.verbose)
-        if not success:
-            print("\n[!] SQLMesh failed")
-            return 1
+        rc = run_sqlmesh(gateway, auto_apply, args.dry_run, args.verbose)
+        if rc != 0:
+            print(f"\n[!] SQLMesh failed with exit code {rc}")
+            return rc
 
     # Success
     print("\n" + "=" * 60)
