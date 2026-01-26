@@ -132,7 +132,16 @@ def main() -> None:
     sqlmesh_env = {**os.environ}
     subprocess.run(
         _get_sqlmesh_command()
-        + ["-p", "sqlmesh", "--gateway", gateway, "plan", "--auto-apply"],
+        + [
+            "-p",
+            "sqlmesh",
+            "--gateway",
+            gateway,
+            "plan",
+            "--auto-apply",
+            "--restate-model",
+            "raw.*",
+        ],
         cwd=project_root,
         check=True,
         env=sqlmesh_env,

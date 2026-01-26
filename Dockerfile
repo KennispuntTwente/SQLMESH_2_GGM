@@ -52,16 +52,15 @@ RUN uv sync --frozen --no-dev --no-install-project
 # Copy the rest of the application
 COPY . .
 
-# Set Python path to include the project root
-ENV PYTHONPATH=/app
-
 # Default environment variables (can be overridden)
 # Gateway is auto-detected from destination
 ENV GGM_DESTINATION=postgres
 
 # Healthcheck - verify Python and key modules are available
+# Use `-P` to avoid current working directory shadowing installed packages
+# (this repo contains top-level `dlt/` and `sqlmesh/` project folders).
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD uv run python -c "import dlt; import sqlmesh; print('OK')" || exit 1
+    CMD uv run python -P -c "from dlt.sources.sql_database import sql_database; from sqlmesh import Context; print('OK')" || exit 1
 
 # Default entrypoint runs the pipeline script
 ENTRYPOINT ["uv", "run", "python", "scripts/pipeline.py"]

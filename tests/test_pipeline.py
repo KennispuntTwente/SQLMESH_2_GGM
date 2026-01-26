@@ -11,11 +11,28 @@ Run with: uv run pytest tests/test_pipeline.py -v
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+
+
+def _get_sqlmesh_command() -> list[str]:
+    """Get the best SQLMesh command for spawning subprocesses.
+
+    Uses sqlmesh CLI directly to avoid local 'sqlmesh/' directory shadowing the package.
+    """
+    uv = shutil.which("uv")
+    if uv:
+        return [uv, "run", "sqlmesh"]
+
+    sqlmesh = shutil.which("sqlmesh")
+    if sqlmesh:
+        return [sqlmesh]
+
+    return ["sqlmesh"]
 
 
 # Markers for different test categories
@@ -52,6 +69,41 @@ class TestPipelineScript:
         assert (
             "dry-run" in result.stdout.lower() or "would run" in result.stdout.lower()
         )
+
+    def test_pipeline_dry_run_includes_restate_model(self, project_root: str) -> None:
+        """Pipeline dry-run includes --restate-model raw.* by default."""
+        result = subprocess.run(
+            [sys.executable, "scripts/pipeline.py", "--dest", "postgres", "--dry-run"],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0
+        # Verify restate-model flag is included for raw.* models
+        assert "--restate-model raw.*" in result.stdout
+        assert "Restate raw : True" in result.stdout
+
+    def test_pipeline_no_restate_raw_flag(self, project_root: str) -> None:
+        """Pipeline --no-restate-raw disables restatement of raw models."""
+        result = subprocess.run(
+            [
+                sys.executable,
+                "scripts/pipeline.py",
+                "--dest",
+                "postgres",
+                "--dry-run",
+                "--no-restate-raw",
+            ],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0
+        # Verify restate-model flag is NOT included
+        assert "--restate-model" not in result.stdout
+        assert "Restate raw : False" in result.stdout
 
     def test_pipeline_invalid_dest(self, project_root: str) -> None:
         """Pipeline script rejects invalid destination."""
@@ -328,3 +380,264 @@ class TestDockerCompose:
             timeout=30,
         )
         assert result.returncode == 0, f"docker-compose config failed: {result.stderr}"
+
+
+@pytest.mark.slow
+class TestPipelineRestateIntegration:
+    """Integration tests verifying stg/silver refresh on repeated data loads.
+
+    Uses DuckDB for fast, no-docker testing. These tests verify that:
+    1. Running the pipeline twice with different load_ids works
+    2. stg/silver models correctly refresh to show the latest data
+    """
+
+    @pytest.fixture
+    def duckdb_path(self, tmp_path: Path) -> Path:
+        """Create a temporary DuckDB database path.
+
+        Use a stable filename so SQLMesh's DuckDB catalog is predictable.
+
+        SQLMesh qualifies DuckDB objects as `<catalog>.<schema>.<table>`, where
+        `<catalog>` is derived from the DuckDB filename stem. Avoid reserved
+        names like `main` which DuckDB may not allow as an attached catalog.
+        """
+        return tmp_path / "test.duckdb"
+
+    @pytest.fixture
+    def sqlmesh_state_dir(self, tmp_path: Path) -> Path:
+        """Create a temporary SQLMesh state directory for test isolation."""
+        state_dir = tmp_path / ".sqlmesh"
+        state_dir.mkdir(exist_ok=True)
+        return state_dir
+
+    @pytest.fixture
+    def load_synthetic_data(self, duckdb_path: Path, project_root: str):
+        """Factory fixture to load synthetic data with unique load_id."""
+        import uuid
+        from datetime import datetime, timezone
+
+        import duckdb
+        import pandas as pd
+
+        def _load(load_suffix: str = "") -> str:
+            """Load synthetic CSVs to DuckDB raw schema with dlt-like metadata.
+
+            Returns the load_id used.
+            """
+            csv_dir = Path(project_root) / "data" / "synthetic"
+            load_id = f"test_{load_suffix}_{uuid.uuid4().hex[:8]}"
+            load_time = datetime.now(timezone.utc).isoformat()
+
+            # SQLMesh qualifies DuckDB objects with a catalog equal to the
+            # DuckDB filename stem (e.g. "test"."raw"."szclient"). Load data
+            # into that catalog to match SQLMesh's expectations.
+            catalog = duckdb_path.stem
+            conn = duckdb.connect(database=":memory:")
+            conn.execute(f"ATTACH '{duckdb_path}' AS \"{catalog}\"")
+
+            conn.execute(f'CREATE SCHEMA IF NOT EXISTS "{catalog}"."raw"')
+            conn.execute(f'CREATE SCHEMA IF NOT EXISTS "{catalog}"."stg"')
+            conn.execute(f'CREATE SCHEMA IF NOT EXISTS "{catalog}"."silver"')
+
+            csvs = sorted(csv_dir.glob("*.csv"))
+            for csv_path in csvs:
+                table = csv_path.stem
+                df = pd.read_csv(csv_path)
+                df.columns = [c.lower() for c in df.columns]
+                df["_dlt_load_id"] = load_id
+                df["_dlt_load_time"] = load_time
+
+                conn.execute(
+                    f'CREATE TABLE IF NOT EXISTS "{catalog}"."raw"."{table}" '
+                    "AS SELECT * FROM df WHERE 1=0"
+                )
+                conn.execute(f'INSERT INTO "{catalog}"."raw"."{table}" SELECT * FROM df')
+
+            conn.close()
+            return load_id
+
+        return _load
+
+    @pytest.mark.integration
+    def test_stg_refreshes_on_restate(
+        self,
+        duckdb_path: Path,
+        sqlmesh_state_dir: Path,
+        load_synthetic_data,
+        project_root: str,
+    ) -> None:
+        """Verify stg layer refreshes when running pipeline twice with new data.
+
+        This test:
+        1. Loads data with load_id_1
+        2. Runs SQLMesh to create stg/silver
+        3. Loads more data with load_id_2
+        4. Runs SQLMesh with restate (default behavior)
+        5. Verifies stg now has load_id_2 data (not load_id_1)
+        """
+        import duckdb
+
+        # Step 1: Load first batch of data
+        load_id_1 = load_synthetic_data("first")
+
+        # Step 2: Run SQLMesh to initialize models
+        # Use SQLMESH_HOME to isolate state for this test
+        env = {
+            **os.environ,
+            "DESTINATION__DUCKDB__CREDENTIALS": str(duckdb_path),
+            "SQLMESH_HOME": str(sqlmesh_state_dir),
+        }
+        sqlmesh_cmd = _get_sqlmesh_command()
+        result = subprocess.run(
+            [
+                *sqlmesh_cmd,
+                "-p",
+                "sqlmesh",
+                "--gateway",
+                "duckdb",
+                "plan",
+                "--auto-apply",
+            ],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env=env,
+        )
+        assert result.returncode == 0, f"First SQLMesh run failed: {result.stdout}"
+
+        # Verify stg has load_id_1
+        catalog = duckdb_path.stem
+        conn = duckdb.connect(database=":memory:")
+        conn.execute(f"ATTACH '{duckdb_path}' AS \"{catalog}\"")
+        stg_load_ids_1 = conn.execute(
+            f'SELECT DISTINCT _dlt_load_id FROM "{catalog}"."stg"."szclient"'
+        ).fetchall()
+        conn.close()
+        assert len(stg_load_ids_1) == 1
+        assert stg_load_ids_1[0][0] == load_id_1
+
+        # Step 3: Load second batch of data
+        load_id_2 = load_synthetic_data("second")
+
+        # Step 4: Run SQLMesh again with restate (should refresh stg/silver)
+        result = subprocess.run(
+            [
+                *sqlmesh_cmd,
+                "-p",
+                "sqlmesh",
+                "--gateway",
+                "duckdb",
+                "plan",
+                "--auto-apply",
+                "--restate-model",
+                "raw.*",
+            ],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env=env,
+        )
+        assert result.returncode == 0, f"Second SQLMesh run failed: {result.stderr}"
+
+        # Step 5: Verify stg now has load_id_2 (the latest)
+        conn = duckdb.connect(database=":memory:")
+        conn.execute(f"ATTACH '{duckdb_path}' AS \"{catalog}\"")
+        stg_load_ids_2 = conn.execute(
+            f'SELECT DISTINCT _dlt_load_id FROM "{catalog}"."stg"."szclient"'
+        ).fetchall()
+        conn.close()
+
+        assert len(stg_load_ids_2) == 1, (
+            f"Expected 1 load_id in stg, got {len(stg_load_ids_2)}"
+        )
+        assert stg_load_ids_2[0][0] == load_id_2, (
+            f"Expected stg to have load_id_2 ({load_id_2}), "
+            f"but got {stg_load_ids_2[0][0]}"
+        )
+
+    @pytest.mark.integration
+    def test_stg_does_not_refresh_without_restate(
+        self,
+        duckdb_path: Path,
+        sqlmesh_state_dir: Path,
+        load_synthetic_data,
+        project_root: str,
+    ) -> None:
+        """Verify stg layer does NOT refresh when running without restate.
+
+        This test confirms that --no-restate-raw behavior works:
+        stg should keep showing load_id_1 even after load_id_2 is added.
+        """
+        import duckdb
+
+        # Step 1: Load first batch of data
+        load_id_1 = load_synthetic_data("first")
+
+        # Step 2: Run SQLMesh to initialize models
+        # Use SQLMESH_HOME to isolate state for this test
+        env = {
+            **os.environ,
+            "DESTINATION__DUCKDB__CREDENTIALS": str(duckdb_path),
+            "SQLMESH_HOME": str(sqlmesh_state_dir),
+        }
+        sqlmesh_cmd = _get_sqlmesh_command()
+        result = subprocess.run(
+            [
+                *sqlmesh_cmd,
+                "-p",
+                "sqlmesh",
+                "--gateway",
+                "duckdb",
+                "plan",
+                "--auto-apply",
+            ],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env=env,
+        )
+        assert result.returncode == 0, f"First SQLMesh run failed: {result.stdout}"
+
+        # Step 3: Load second batch of data
+        load_id_2 = load_synthetic_data("second")
+
+        # Step 4: Run SQLMesh WITHOUT restate (should NOT refresh stg/silver)
+        result = subprocess.run(
+            [
+                *sqlmesh_cmd,
+                "-p",
+                "sqlmesh",
+                "--gateway",
+                "duckdb",
+                "plan",
+                "--auto-apply",
+            ],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env=env,
+        )
+        assert result.returncode == 0, f"Second SQLMesh run failed: {result.stdout}"
+
+        # Step 5: Verify stg still has load_id_1 (NOT load_id_2)
+        # because we didn't restate external models
+        catalog = duckdb_path.stem
+        conn = duckdb.connect(database=":memory:")
+        conn.execute(f"ATTACH '{duckdb_path}' AS \"{catalog}\"")
+        stg_load_ids = conn.execute(
+            f'SELECT DISTINCT _dlt_load_id FROM "{catalog}"."stg"."szclient"'
+        ).fetchall()
+        conn.close()
+
+        assert len(stg_load_ids) == 1, (
+            f"Expected 1 load_id in stg, got {len(stg_load_ids)}"
+        )
+        # Without restate, stg should still show the OLD load_id_1
+        assert stg_load_ids[0][0] == load_id_1, (
+            f"Expected stg to keep load_id_1 ({load_id_1}) without restate, "
+            f"but got {stg_load_ids[0][0]}"
+        )

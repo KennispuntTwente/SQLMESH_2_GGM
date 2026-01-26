@@ -149,16 +149,43 @@ def run_dlt(
     return result.returncode
 
 
-def run_sqlmesh(gateway: str, auto_apply: bool, dry_run: bool, verbose: bool) -> int:
-    """Run SQLMesh: raw -> stg -> silver."""
+def run_sqlmesh(
+    gateway: str,
+    auto_apply: bool,
+    restate_models: list[str] | None = None,
+    dry_run: bool = False,
+    verbose: bool = False,
+) -> int:
+    """Run SQLMesh: raw -> stg -> silver.
+
+    Args:
+        gateway: SQLMesh gateway to use
+        auto_apply: If True, auto-apply the plan without prompting
+        restate_models: List of model patterns to restate. Defaults to ["raw.*"]
+            to ensure stg/silver refresh on new data loads. Pass empty list to skip.
+        dry_run: If True, only show what would be executed
+        verbose: If True, show detailed output
+    """
+    # Default to restating raw.* to ensure stg/silver refresh on new data
+    if restate_models is None:
+        restate_models = ["raw.*"]
+
     print(f"\n{'=' * 60}")
     print(f"  SQLMesh: Transforming raw -> stg -> silver (gateway: {gateway})")
+    if restate_models:
+        print(f"  Restating: {', '.join(restate_models)}")
     print(f"{'=' * 60}\n")
 
     # Use sqlmesh CLI directly to avoid local 'sqlmesh/' directory shadowing the package
     cmd = _get_sqlmesh_command() + ["-p", "sqlmesh", "--gateway", gateway, "plan"]
     if auto_apply:
         cmd.append("--auto-apply")
+
+    # Add restate-model flags for each pattern
+    # This triggers cascading backfill for downstream models (stg, silver)
+    if restate_models:
+        for model in restate_models:
+            cmd.extend(["--restate-model", model])
 
     return run_command(cmd, dry_run=dry_run, verbose=verbose)
 
@@ -227,6 +254,12 @@ Examples:
         action="store_true",
         help="Don't auto-apply SQLMesh plan (interactive mode)",
     )
+    parser.add_argument(
+        "--restate-raw",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Restate raw.* external models to refresh stg/silver (default: True)",
+    )
 
     # General options
     parser.add_argument(
@@ -253,6 +286,9 @@ Examples:
     dataset = args.dataset or get_env("GGM_DATASET", DEFAULT_DATASET)
     dlt_backend = args.dlt_backend or get_env("GGM_DLT_BACKEND", "auto")
     auto_apply = not args.no_auto_apply
+    # Restate raw.* by default (unless --no-restate-raw is passed)
+    # This ensures stg/silver are refreshed when new data is loaded to raw
+    restate_raw = args.restate_raw
 
     # Print configuration
     print("\n" + "=" * 60)
@@ -265,6 +301,7 @@ Examples:
     print(f"  dlt         : {'skip' if args.skip_dlt else 'run'}")
     print(f"  SQLMesh     : {'skip' if args.skip_sqlmesh else 'run'}")
     print(f"  Auto-apply  : {auto_apply}")
+    print(f"  Restate raw : {restate_raw}")
     print("=" * 60)
 
     if args.skip_dlt and args.skip_sqlmesh:
@@ -280,7 +317,13 @@ Examples:
 
     # Run SQLMesh
     if not args.skip_sqlmesh:
-        rc = run_sqlmesh(gateway, auto_apply, args.dry_run, args.verbose)
+        # Determine which models to restate
+        # Restating external models (raw.*) triggers cascading backfill of stg/silver
+        # Pass empty list to explicitly disable restatement (None uses default of raw.*)
+        restate_models = ["raw.*"] if restate_raw else []
+        rc = run_sqlmesh(
+            gateway, auto_apply, restate_models, args.dry_run, args.verbose
+        )
         if rc != 0:
             print(f"\n[!] SQLMesh failed with exit code {rc}")
             return rc
@@ -289,9 +332,7 @@ Examples:
     print("\n" + "=" * 60)
     print("  Pipeline complete!")
     print("=" * 60)
-    print(
-        f"\n  Explore with: uv run sqlmesh -p sqlmesh --gateway {gateway} ui"
-    )
+    print(f"\n  Explore with: uv run sqlmesh -p sqlmesh --gateway {gateway} ui")
     print(
         f'  Query data:   uv run sqlmesh -p sqlmesh --gateway {gateway} fetchdf "SELECT * FROM silver.client LIMIT 10"'
     )

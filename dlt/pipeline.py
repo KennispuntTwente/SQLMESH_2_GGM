@@ -24,10 +24,12 @@ import os
 import sys
 from pathlib import Path
 
-# Add parent directory to path to allow imports when running directly
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# NOTE: Do NOT add the repo root to sys.path here.
+# This repository contains a top-level `dlt/` directory (this one) which would
+# shadow the third-party `dlt` package via Python namespace-package resolution.
+# Keeping imports isolated to the script directory avoids that class of failure.
 
-# Import dlt library (using full package name to avoid confusion)
+# Import dlt library
 import dlt as dlt_lib
 from dlt.sources.sql_database import sql_database
 
