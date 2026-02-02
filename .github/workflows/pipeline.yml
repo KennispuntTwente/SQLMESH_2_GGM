@@ -126,6 +126,8 @@ jobs:
         env:
           # Oracle source credentials - use app user for proper reflection
           SOURCES__SQL_DATABASE__CREDENTIALS: "oracle+oracledb://appuser:apppass@localhost:1521/?service_name=ggm"
+          # Tables are loaded into appuser's schema
+          SOURCES__SQL_DATABASE__SCHEMA: "appuser"
 
           # Postgres destination credentials
           DESTINATION__POSTGRES__CREDENTIALS: "postgresql://ggm:ggm@localhost:5432/ggm_dev"

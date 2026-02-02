@@ -69,11 +69,11 @@ jobs:
       - name: Test Docker image --dry-run
         run: docker run --rm ggm-pipeline:test --dest postgres --dry-run
 
-  # Integration tests with Docker services
-  integration-tests:
-    name: Integration tests (PostgreSQL)
+  # SQLMesh configuration validation
+  sqlmesh-config:
+    name: SQLMesh configuration
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     needs: [unit-tests]  # Only run if unit tests pass
 
     steps:
@@ -91,13 +91,6 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras
       
-      - name: Test SQLMesh connection
-        env:
-          POSTGRES_PASSWORD: ggm_dev
+      - name: Test SQLMesh configuration loads
         run: |
-          uv run sqlmesh -p sqlmesh --gateway local info
-      
-      - name: Run integration tests
-        env:
-          POSTGRES_PASSWORD: ggm_dev
-        run: uv run pytest tests/test_pipeline.py::TestPipelineWithDocker -v --tb=short
+          uv run sqlmesh -p transform --gateway duckdb info

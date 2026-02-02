@@ -20,10 +20,11 @@ Oracle CSSD → dlt (append) → raw.* (historical) → stg.* (latest) → silve
 ```bash
 uv run dev                                 # Full dev setup: Docker + Oracle + dlt + SQLMesh
 uv run dev --dest mssql                    # Dev with MSSQL target
+uv run dev --dest duckdb                   # Dev with DuckDB (no Docker needed for target)
 uv run pipeline --dest postgres            # Production pipeline
 uv run pipeline --dest postgres --dry-run  # Preview commands
 uv run pipeline --dest postgres --no-restate-raw  # Skip restatement (model changes only)
-uv run sqlmesh -p sqlmesh plan --auto-apply  # Apply SQLMesh transformations
+uv run sqlmesh -p transform plan --auto-apply  # Apply SQLMesh transformations
 uv run python scripts/validate_schema.py   # Validate silver vs DDL (runs in CI)
 uv run pytest                              # Run all tests
 ```
@@ -37,7 +38,7 @@ By default, `uv run pipeline` includes `--restate-model raw.*` to ensure stg/sil
 
 ## SQL Model Patterns
 
-### Staging (`sqlmesh/models/stg/*.sql`)
+### Staging (`transform/models/stg/*.sql`)
 ```sql
 MODEL (name stg.tablename, kind FULL);
 
@@ -47,7 +48,7 @@ FROM raw.tablename
 WHERE _dlt_load_id = (SELECT load_id FROM latest_load)
 ```
 
-### Silver (`sqlmesh/models/silver/*.sql`)
+### Silver (`transform/models/silver/*.sql`)
 ```sql
 MODEL (name silver.tablename, kind FULL,
     description 'GGM table description',
@@ -65,17 +66,17 @@ FROM stg.source_table
 
 1. **SQL Dialect**: SQLGlot-compatible only. Use `COALESCE` not `NVL`, `CONCAT` not `||`.
 2. **Column Names**: Silver columns must match `ggm/selectie/cssd/*.sql` DDL exactly (case-insensitive).
-3. **Audits**: DDL constraints become non-blocking audits in `sqlmesh/audits/` (not enforced in silver).
+3. **Audits**: DDL constraints become non-blocking audits in `transform/audits/` (not enforced in silver).
 4. **Dependencies**: Use `uv` exclusively. Never `pip install`.
-5. **SQLMesh Path**: Always use `-p sqlmesh` when running sqlmesh CLI directly.
+5. **SQLMesh Path**: Always use `-p transform` when running sqlmesh CLI directly.
 
 ## Adding New Tables
 
-1. Add table name (lowercase) to `SOURCE_TABLES` list in `dlt/pipeline.py`
-2. Add external model definition to `sqlmesh/external_models.yaml`
-3. Create `sqlmesh/models/stg/tablename.sql` with `_dlt_load_id` filter pattern
-4. Create `sqlmesh/models/silver/tablename.sql` mapping to GGM columns
-5. Create `sqlmesh/audits/tablename.sql` for PK/constraint validations
+1. Add table name (lowercase) to `SOURCE_TABLES` list in `ingest/pipeline.py`
+2. Add external model definition to `transform/external_models.yaml`
+3. Create `transform/models/stg/tablename.sql` with `_dlt_load_id` filter pattern
+4. Create `transform/models/silver/tablename.sql` mapping to GGM columns
+5. Create `transform/audits/tablename.sql` for PK/constraint validations
 6. Run `uv run python scripts/validate_schema.py` to verify
 
 ## DDL-to-Model Generation
@@ -86,12 +87,12 @@ Generate SQLMesh models from GGM DDL files:
 uv run python scripts/ddl_to_sqlmesh.py --ddl-dir ggm/selectie/cssd --dry-run
 
 # Generate models
-uv run python scripts/ddl_to_sqlmesh.py --ddl-dir ggm/selectie/cssd --output-dir sqlmesh/models/silver
+uv run python scripts/ddl_to_sqlmesh.py --ddl-dir ggm/selectie/cssd --output-dir transform/models/silver
 ```
 
 ## External Models
 
-Raw tables are managed by dlt and defined as external models in `sqlmesh/external_models.yaml`:
+Raw tables are managed by dlt and defined as external models in `transform/external_models.yaml`:
 
 ```yaml
 - name: raw.tablename
@@ -104,20 +105,20 @@ Raw tables are managed by dlt and defined as external models in `sqlmesh/externa
 
 **Commands:**
 ```bash
-uv run sqlmesh -p sqlmesh create_external_models  # Auto-generate from database metadata
+uv run sqlmesh -p transform create_external_models  # Auto-generate from database metadata
 ```
 
 ## File Reference
 
 | Path | Purpose |
 |------|---------|
-| `dlt/pipeline.py` | dlt pipeline (`SOURCE_TABLES` list) |
-| `dlt/constants.py` | Destination/gateway mappings |
-| `sqlmesh/external_models.yaml` | External model definitions for `raw.*` tables |
-| `sqlmesh/models/stg/*.sql` | Staging models (latest load filter) |
-| `sqlmesh/models/silver/*.sql` | GGM transformations |
-| `sqlmesh/audits/*.sql` | Non-blocking constraint checks |
-| `sqlmesh/config.yaml` | SQLMesh gateways (postgres/mssql/mysql/duckdb) |
+| `ingest/pipeline.py` | dlt pipeline (`SOURCE_TABLES` list) |
+| `ingest/constants.py` | Destination/gateway mappings |
+| `transform/external_models.yaml` | External model definitions for `raw.*` tables |
+| `transform/models/stg/*.sql` | Staging models (latest load filter) |
+| `transform/models/silver/*.sql` | GGM transformations |
+| `transform/audits/*.sql` | Non-blocking constraint checks |
+| `transform/config.yaml` | SQLMesh gateways (postgres/mssql/mysql/duckdb) |
 | `ggm/selectie/cssd/*.sql` | **Authoritative DDL** (validation source) |
 | `scripts/ddl_parser.py` | Shared DDL parsing utilities |
 | `scripts/validate_schema.py` | CI validation against DDL |
@@ -125,7 +126,7 @@ uv run sqlmesh -p sqlmesh create_external_models  # Auto-generate from database 
 
 ## Gateway vs Destination Mapping
 
-dlt destinations map to SQLMesh gateways via `dlt/constants.py`:
+dlt destinations map to SQLMesh gateways via `ingest/constants.py`:
 
 | dlt `--dest` | SQLMesh gateway | Notes |
 |--------------|-----------------|-------|
@@ -135,7 +136,7 @@ dlt destinations map to SQLMesh gateways via `dlt/constants.py`:
 | `duckdb` | `duckdb` | No server needed, local file |
 | `snowflake` | `snowflake` | Cloud (configure in `config.yaml`) |
 
-To add a new destination: update `DLT_DESTINATIONS`, `SQLMESH_GATEWAYS`, and `DESTINATION_TO_GATEWAY` in `dlt/constants.py`, then add gateway config to `sqlmesh/config.yaml`.
+To add a new destination: update `DLT_DESTINATIONS`, `SQLMESH_GATEWAYS`, and `DESTINATION_TO_GATEWAY` in `ingest/constants.py`, then add gateway config to `transform/config.yaml`.
 
 ## Environment Configuration
 

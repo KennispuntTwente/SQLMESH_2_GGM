@@ -79,8 +79,8 @@
     besluitnr: bigint
     volgnr_ind: bigint
     clientnr: bigint
-    dd_begin: date
-    dd_eind: date
+    dd_begin: text
+    dd_eind: text
     volume: double
     status_indicatie: text
     kode_regeling: text
