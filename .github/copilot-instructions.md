@@ -22,10 +22,18 @@ uv run dev                                 # Full dev setup: Docker + Oracle + d
 uv run dev --dest mssql                    # Dev with MSSQL target
 uv run pipeline --dest postgres            # Production pipeline
 uv run pipeline --dest postgres --dry-run  # Preview commands
+uv run pipeline --dest postgres --no-restate-raw  # Skip restatement (model changes only)
 uv run sqlmesh -p sqlmesh plan --auto-apply  # Apply SQLMesh transformations
 uv run python scripts/validate_schema.py   # Validate silver vs DDL (runs in CI)
 uv run pytest                              # Run all tests
 ```
+
+### External Model Restatement
+
+By default, `uv run pipeline` includes `--restate-model raw.*` to ensure stg/silver models are refreshed when new data is loaded. This is required because raw tables are external models managed by dlt.
+
+- **Default behavior**: All raw.* models are restated, triggering cascading backfill of stg.* and silver.*
+- **Skip restatement**: Use `--no-restate-raw` to only apply model changes without refreshing data
 
 ## SQL Model Patterns
 
