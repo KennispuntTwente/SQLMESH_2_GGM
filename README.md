@@ -25,7 +25,7 @@ met een unieke `_dlt_load_id` per run. Dit is de meest simpele load-strategie wa
 afhankelijk van de behoefte van de organisatie kan een andere load-strategie gekozen worden 
 (zie: [documentatie van 'dlt'](https://dlthub.com/docs/general-usage/incremental-loading)).
 
-> Zie: 'dlt/pipeline.py'.
+> Zie: 'ingest/pipeline.py'.
 
 ### 2 - Transform
 
@@ -33,14 +33,14 @@ afhankelijk van de behoefte van de organisatie kan een andere load-strategie gek
 
 'SQLMesh' neemt de 'raw'-gegevens en transformeert deze naar een 'stg'-laag (staging/brons),
 waarin de meest recent geladen gegevens worden bewaard. Dit wordt gedaan door te filteren op de hoogste `_dlt_load_id`.
-> Zie: 'sqlmesh/models/stg/'.
+> Zie: 'transform/models/stg/'.
 
 #### 2.2 - stg -> silver (GGM)
 
 Vervolgens transformeert 'SQLMesh' deze 'stg'-gegevens naar een 'silver'-laag op basis van het GGM,
 gemaakt naar de DDL-definities in 'ggm/selectie/cssd/*.sql' (zoals deze door de gemeente Delft zijn opgesteld).
 Hiermee staat de data in het GGM.
-> Zie: 'sqlmesh/models/silver/'.
+> Zie: 'transform/models/silver/'.
 
 ##### Constraints in silver-laag
 
@@ -50,7 +50,7 @@ zodat deze laag flexibel blijft en het laden van gegevens niet blokkeert.
 Dit is ook hoe de gemeente Delft het GGM toepast in hun datawarehouse. Omdat de constraints wel relevante
 informatie bieden over datakwaliteit, hebben we deze vertaald naar (non-blocking) '[audits](https://sqlmesh.readthedocs.io/en/latest/concepts/audits/)'. Met deze audits kan 'SQLMesh' rapporteren over mogelijke datakwaliteitsproblemen in de 'silver'-laag. 
 We raden aan om die problemen voor zover mogelijk op te lossen in bronsystemen of om deze in een 'gold'-laag op te lossen.
-> Zie: 'sqlmesh/audits/'.
+> Zie: 'transform/audits/'.
 
 ##### GGM DDL -> SQLMesh-modellen
 
@@ -69,10 +69,10 @@ Je kan dit script als volgt gebruiken:
 uv run python scripts/ddl_to_sqlmesh.py --ddl-dir ggm/selectie/cssd --dry-run
 
 # Modellen genereren naar output-map
-uv run python scripts/ddl_to_sqlmesh.py --ddl-dir ggm/selectie/cssd --output-dir sqlmesh/models/silver
+uv run python scripts/ddl_to_sqlmesh.py --ddl-dir ggm/selectie/cssd --output-dir transform/models/silver
 
 # Specifieke tabellen converteren
-uv run python scripts/ddl_to_sqlmesh.py --ddl-dir ggm/selectie/cssd --output-dir sqlmesh/models/silver --tables beschikking,client
+uv run python scripts/ddl_to_sqlmesh.py --ddl-dir ggm/selectie/cssd --output-dir transform/models/silver --tables beschikking,client
 ```
 
 In 'scripts/validate_schema.py' is een validatie-script opgenomen dat de met 'SQLMesh' opgestelde 'silver'-modellen vergelijkt met de DDL-definities van het GGM in 'ggm/selectie/cssd/*.sql'. Hierbij wordt
@@ -119,12 +119,12 @@ of via een '.env'-bestand in de hoofdmap van dit project. Zie als voorbeeld het
 bestand '.env.example'. Hierin staan de relevante variabelen voor de bron-database 
 en diverse bestemmingsdatabases. Vul in wat je nodig hebt en sla het bestand op als '.env'.
 
-Als alternatief en/of voor meer geavanceerde configuratie, kan je ook 'dlt/.dlt/config.toml' en
-'dlt/.dlt/secrets.toml' gebruiken voor de 'dlt'-configuratie, en 'sqlmesh/config.yaml' voor de 'SQLMesh'-configuratie.
+Als alternatief en/of voor meer geavanceerde configuratie, kan je ook 'ingest/.dlt/config.toml' en
+'ingest/.dlt/secrets.toml' gebruiken voor de 'dlt'-configuratie, en 'transform/config.yaml' voor de 'SQLMesh'-configuratie.
 
 (Let op: in deze pijplijn zijn diverse bestemmingen van 'dlt' en 'SQLMesh' opgenomen,
-maar niet alle. Om een nieuwe bestemming toe te voegen, voeg deze toe aan 'dlt/constants.py' en 
-zorg dat de benodigde configuratie in 'sqlmesh/config.yaml' (SQLMesh) en/of '.env'/'dlt/.dlt/secrets.toml' ('dlt') is ingesteld.
+maar niet alle. Om een nieuwe bestemming toe te voegen, voeg deze toe aan 'ingest/constants.py' en 
+zorg dat de benodigde configuratie in 'transform/config.yaml' (SQLMesh) en/of '.env'/'ingest/.dlt/secrets.toml' ('dlt') is ingesteld.
 Mogelijk moet je ook extra Python-packages installeren voor de nieuwe bestemming; 
 gebruik hiervoor `uv add <package>` en daarna `uv sync`.)
 

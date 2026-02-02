@@ -9,7 +9,7 @@ Configuration:
 
 Usage:
     # From command line (standalone):
-    python -m dlt.pipeline --dest postgres
+    python ingest/pipeline.py --dest postgres
 
     # Or via orchestrator:
     uv run pipeline --dest postgres
@@ -38,8 +38,8 @@ from config import (
 
 load_config()
 
-# Import dlt library (using full package name to avoid confusion)
-import dlt as dlt_lib
+# Import dlt library
+import dlt
 from dlt.sources.sql_database import sql_database
 
 # Import local constants
@@ -174,7 +174,7 @@ def run_pipeline(
     dataset_name: str | None = None,
     backend: str | None = None,
     row_limit: int | None = None,
-) -> dlt_lib.Pipeline:
+) -> dlt.Pipeline:
     """Run dlt pipeline: source -> raw layer.
     
     Args:
@@ -198,7 +198,7 @@ def run_pipeline(
             f"[dlt] Note: '{destination}' normalized to dlt destination '{dlt_destination}'"
         )
 
-    pipeline = dlt_lib.pipeline(
+    pipeline = dlt.pipeline(
         pipeline_name="ggm_raw",
         destination=dlt_destination,
         dataset_name=dataset_name,

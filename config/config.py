@@ -9,10 +9,10 @@ Configuration precedence:
 3. Defaults defined here (lowest priority)
 
 This module is imported by:
-- dlt/pipeline.py (dlt extraction)
+- ingest/pipeline.py (dlt extraction)
 - scripts/pipeline.py (orchestration)
 - scripts/dev.py (dev environment)
-- sqlmesh/config.yaml (SQLMesh, via env_var())
+- transform/config.yaml (SQLMesh, via env_var())
 """
 
 import os

@@ -22,7 +22,7 @@ import pytest
 def _get_sqlmesh_command() -> list[str]:
     """Get the best SQLMesh command for spawning subprocesses.
 
-    Uses sqlmesh CLI directly to avoid local 'sqlmesh/' directory shadowing the package.
+    Uses sqlmesh CLI directly to avoid local 'transform/' directory shadowing the package.
     """
     uv = shutil.which("uv")
     if uv:
@@ -154,24 +154,24 @@ class TestPipelineImports:
         import sys
         from pathlib import Path
 
-        # Add dlt folder to path for imports
-        dlt_path = str(Path(__file__).parent.parent / "dlt")
-        if dlt_path not in sys.path:
-            sys.path.insert(0, dlt_path)
-        import pipeline as dlt_pipeline
+        # Add ingest folder to path for imports
+        ingest_path = str(Path(__file__).parent.parent / "ingest")
+        if ingest_path not in sys.path:
+            sys.path.insert(0, ingest_path)
+        import pipeline as ingest_pipeline
 
-        assert hasattr(dlt_pipeline, "run_pipeline")
-        assert hasattr(dlt_pipeline, "SOURCE_TABLES")
+        assert hasattr(ingest_pipeline, "run_pipeline")
+        assert hasattr(ingest_pipeline, "SOURCE_TABLES")
 
     def test_import_constants(self) -> None:
         """Constants module has required values."""
         import sys
         from pathlib import Path
 
-        # Add dlt folder to path for imports
-        dlt_path = str(Path(__file__).parent.parent / "dlt")
-        if dlt_path not in sys.path:
-            sys.path.insert(0, dlt_path)
+        # Add ingest folder to path for imports
+        ingest_path = str(Path(__file__).parent.parent / "ingest")
+        if ingest_path not in sys.path:
+            sys.path.insert(0, ingest_path)
         from constants import (
             DLT_DESTINATIONS,
             SQLMESH_GATEWAYS,
@@ -309,9 +309,9 @@ class TestPipelineWithDocker:
         """SQLMesh plan works in dry-run mode against PostgreSQL."""
         # Use 'info' command to validate SQLMesh can parse models and connect
         # This doesn't require raw tables to exist in the database
-        # Use sqlmesh CLI directly to avoid local 'sqlmesh/' directory shadowing the package
+        # Use sqlmesh CLI directly to avoid local 'transform/' directory shadowing the package
         result = subprocess.run(
-            ["sqlmesh", "-p", "sqlmesh", "--gateway", "local", "info"],
+            ["sqlmesh", "-p", "transform", "--gateway", "local", "info"],
             cwd=project_root,
             capture_output=True,
             text=True,
@@ -492,7 +492,7 @@ class TestPipelineRestateIntegration:
             [
                 *sqlmesh_cmd,
                 "-p",
-                "sqlmesh",
+                "transform",
                 "--gateway",
                 "duckdb",
                 "plan",
@@ -525,7 +525,7 @@ class TestPipelineRestateIntegration:
             [
                 *sqlmesh_cmd,
                 "-p",
-                "sqlmesh",
+                "transform",
                 "--gateway",
                 "duckdb",
                 "plan",
@@ -587,7 +587,7 @@ class TestPipelineRestateIntegration:
             [
                 *sqlmesh_cmd,
                 "-p",
-                "sqlmesh",
+                "transform",
                 "--gateway",
                 "duckdb",
                 "plan",
@@ -609,7 +609,7 @@ class TestPipelineRestateIntegration:
             [
                 *sqlmesh_cmd,
                 "-p",
-                "sqlmesh",
+                "transform",
                 "--gateway",
                 "duckdb",
                 "plan",

@@ -593,9 +593,9 @@ def get_gateway_config(gateway_name: str) -> tuple[str, dict[str, Any]]:
 
     import yaml
 
-    # Find config.yaml in sqlmesh/ directory
+    # Find config.yaml in transform/ directory
     project_root = Path(__file__).parent.parent
-    config_path = project_root / "sqlmesh" / "config.yaml"
+    config_path = project_root / "transform" / "config.yaml"
 
     if not config_path.exists():
         raise ValueError(f"SQLMesh config not found: {config_path}")

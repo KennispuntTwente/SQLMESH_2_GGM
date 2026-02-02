@@ -7,8 +7,8 @@ All configuration is read from environment variables via the config module.
 Usage:
     uv run pipeline --dest postgres                    # Full pipeline to PostgreSQL
     uv run pipeline --dest snowflake --gateway snowflake  # Snowflake
-    uv run pipeline --dest postgres --skip-dlt         # SQLMesh only
-    uv run pipeline --dest postgres --skip-sqlmesh     # dlt only
+    uv run pipeline --dest postgres --skip-dlt      # SQLMesh only
+    uv run pipeline --dest postgres --skip-sqlmesh   # dlt only
     uv run pipeline --dest postgres --dry-run          # Preview what would run
 
 See .env.example for the full list of configuration options.
@@ -39,7 +39,7 @@ from config import (
 load_config()
 
 # Import constants
-sys.path.insert(0, str(Path(__file__).parent.parent / "dlt"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "ingest"))
 from constants import (
     DLT_DESTINATIONS,
     DLT_BACKENDS,
@@ -70,7 +70,7 @@ def _get_python_command() -> list[str]:
 def _get_sqlmesh_command() -> list[str]:
     """Get the best SQLMesh command for spawning subprocesses.
 
-    Uses sqlmesh CLI directly to avoid local 'sqlmesh/' directory shadowing the package
+    Uses sqlmesh CLI directly to avoid local 'transform/' directory shadowing the package
     when using 'python -m sqlmesh'.
 
     Preference order:
@@ -117,11 +117,11 @@ def run_dlt(
     print(f"  dlt: Extracting source -> {destination}.{dataset}")
     print(f"{'=' * 60}\n")
 
-    dlt_dir = Path(__file__).parent.parent / "dlt"
+    ingest_dir = Path(__file__).parent.parent / "ingest"
     python_cmd = _get_python_command()
     cmd = [
         *python_cmd,
-        str(dlt_dir / "pipeline.py"),
+        str(ingest_dir / "pipeline.py"),
         "--dest",
         destination,
         "--dataset",
@@ -135,14 +135,14 @@ def run_dlt(
     if dry_run:
         cmd_str = " ".join(cmd)
         print(f"[dry-run] Would run: {cmd_str}")
-        print(f"[dry-run] With DLT_PROJECT_DIR={dlt_dir}")
+        print(f"[dry-run] With DLT_PROJECT_DIR={ingest_dir}")
         return 0
 
     if verbose:
         print(f"[run] {' '.join(cmd)}")
 
     # Set DLT_PROJECT_DIR so dlt finds its .dlt/ config
-    env = {**os.environ, "DLT_PROJECT_DIR": str(dlt_dir)}
+    env = {**os.environ, "DLT_PROJECT_DIR": str(ingest_dir)}
     result = subprocess.run(cmd, env=env)
     return result.returncode
 
@@ -174,8 +174,8 @@ def run_sqlmesh(
         print(f"  Restating: {', '.join(restate_models)}")
     print(f"{'=' * 60}\n")
 
-    # Use sqlmesh CLI directly to avoid local 'sqlmesh/' directory shadowing the package
-    cmd = _get_sqlmesh_command() + ["-p", "sqlmesh", "--gateway", gateway, "plan"]
+    # SQLMesh project path is now 'transform/'
+    cmd = _get_sqlmesh_command() + ["-p", "transform", "--gateway", gateway, "plan"]
     if auto_apply:
         cmd.append("--auto-apply")
 
@@ -301,8 +301,8 @@ Examples:
     print(f"  Gateway     : {gateway}")
     print(f"  Dataset     : {dataset}")
     print(f"  dlt backend : {dlt_backend}")
-    print(f"  dlt         : {'skip' if args.skip_dlt else 'run'}")
-    print(f"  SQLMesh     : {'skip' if args.skip_sqlmesh else 'run'}")
+    print(f"  Ingest      : {'skip' if args.skip_dlt else 'run'}")
+    print(f"  Transform   : {'skip' if args.skip_sqlmesh else 'run'}")
     print(f"  Auto-apply  : {auto_apply}")
     print(f"  Restate raw : {restate_raw}")
     if row_limit:
@@ -313,14 +313,14 @@ Examples:
         print("\n[!] Nothing to do (both --skip-dlt and --skip-sqlmesh specified)")
         return 0
 
-    # Run dlt
+    # Run dlt (ingest)
     if not args.skip_dlt:
         rc = run_dlt(destination, dataset, dlt_backend, row_limit, args.dry_run, args.verbose)
         if rc != 0:
             print(f"\n[!] dlt failed with exit code {rc}")
             return rc
 
-    # Run SQLMesh
+    # Run SQLMesh (transform)
     if not args.skip_sqlmesh:
         # Determine which models to restate
         # Restating external models (raw.*) triggers cascading backfill of stg/silver
@@ -337,9 +337,9 @@ Examples:
     print("\n" + "=" * 60)
     print("  Pipeline complete!")
     print("=" * 60)
-    print(f"\n  Explore with: uv run sqlmesh -p sqlmesh --gateway {gateway} ui")
+    print(f"\n  Explore with: uv run sqlmesh -p transform --gateway {gateway} ui")
     print(
-        f'  Query data:   uv run sqlmesh -p sqlmesh --gateway {gateway} fetchdf "SELECT * FROM silver.client LIMIT 10"'
+        f'  Query data:   uv run sqlmesh -p transform --gateway {gateway} fetchdf "SELECT * FROM silver.client LIMIT 10"'
     )
     print()
 

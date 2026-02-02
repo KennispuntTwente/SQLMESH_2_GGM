@@ -137,9 +137,9 @@ jobs:
           # Use pymysql dialect since mysqlclient is not installed
           DESTINATION__SQLALCHEMY__CREDENTIALS: "mysql+pymysql://root:Test123!@localhost:3306/ggm_dev"
           # dlt project directory (for config lookup)
-          DLT_PROJECT_DIR: dlt
+          DLT_PROJECT_DIR: ingest
         run: |
-          uv run python dlt/pipeline.py --dest "${{ matrix.destination }}"
+          uv run python ingest/pipeline.py --dest "${{ matrix.destination }}"
       
       - name: SQLMesh plan and apply
         env:
@@ -169,7 +169,7 @@ jobs:
           DESTINATION__SQLALCHEMY__CREDENTIALS__DRIVERNAME: mysql+pymysql
           # DuckDB
           DESTINATION__DUCKDB__CREDENTIALS: ggm_dev.db
-        run: uv run sqlmesh -p sqlmesh --gateway "${{ matrix.destination }}" plan --auto-apply
+        run: uv run sqlmesh -p transform --gateway "${{ matrix.destination }}" plan --auto-apply
       
       - name: SQLMesh tests
         env:
@@ -199,7 +199,7 @@ jobs:
           DESTINATION__SQLALCHEMY__CREDENTIALS__DRIVERNAME: mysql+pymysql
           # DuckDB
           DESTINATION__DUCKDB__CREDENTIALS: ggm_dev.db
-        run: uv run sqlmesh -p sqlmesh --gateway "${{ matrix.destination }}" test
+        run: uv run sqlmesh -p transform --gateway "${{ matrix.destination }}" test
 
       - name: Validate database schema against DDL
         env:

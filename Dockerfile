@@ -10,21 +10,21 @@ FROM python:3.12.10-slim
 # Install system dependencies for database drivers
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        # For PostgreSQL
-        libpq-dev \
-        # For MSSQL (pyodbc)
-        unixodbc-dev \
-        gcc \
-        g++ \
-        wget \
-        unzip \
-        # General utilities
-        curl \
+    # For PostgreSQL
+    libpq-dev \
+    # For MSSQL (pyodbc)
+    unixodbc-dev \
+    gcc \
+    g++ \
+    wget \
+    unzip \
+    # General utilities
+    curl \
     && if apt-cache show libaio1t64 >/dev/null 2>&1; then \
-        apt-get install -y --no-install-recommends libaio1t64; \
-      else \
-        apt-get install -y --no-install-recommends libaio1; \
-      fi \
+    apt-get install -y --no-install-recommends libaio1t64; \
+    else \
+    apt-get install -y --no-install-recommends libaio1; \
+    fi \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Oracle Instant Client (required for oracledb thick mode)
@@ -58,7 +58,7 @@ ENV GGM_DESTINATION=postgres
 
 # Healthcheck - verify Python and key modules are available
 # Use `-P` to avoid current working directory shadowing installed packages
-# (this repo contains top-level `dlt/` and `sqlmesh/` project folders).
+# (this repo contains top-level `ingest/` and `transform/` project folders).
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD uv run python -P -c "from dlt.sources.sql_database import sql_database; from sqlmesh import Context; print('OK')" || exit 1
 

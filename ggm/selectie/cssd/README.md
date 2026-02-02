@@ -9,7 +9,7 @@ Ten opzichte van de originele DDL zijn de volgende wijzigingen doorgevoerd:
 naar audits/tests.)
 
 Deze DDL correspondeert aan de tabellen die gemodelleerd worden in 
-'sqlmesh/models/silver'. 
+'transform/models/silver'. 
 
-In 'scripts/validate_schema.py' verifiëren we of de tabellen die gemodelleerd worden in 'sqlmesh/models/silver' overeenkomen met de tabellen die in de SQL-code in 'ggm/selectie/cssd' gedefinieerd zijn (validatie wordt uitgevoerd in GitHub Actions).
+In 'scripts/validate_schema.py' verifiëren we of de tabellen die gemodelleerd worden in 'transform/models/silver' overeenkomen met de tabellen die in de SQL-code in 'ggm/selectie/cssd' gedefinieerd zijn (validatie wordt uitgevoerd in GitHub Actions).
 

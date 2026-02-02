@@ -64,10 +64,10 @@ def get_model_columns_with_types(silver_schema: str = "silver") -> dict[str, dic
     """
     try:
         from sqlmesh import Context
-        # Use the sqlmesh/ directory relative to project root
+        # Use the transform/ directory relative to project root
         project_root = Path(__file__).parent.parent
-        sqlmesh_path = project_root / "sqlmesh"
-        ctx = Context(paths=str(sqlmesh_path))
+        transform_path = project_root / "transform"
+        ctx = Context(paths=str(transform_path))
     except Exception as e:
         print(f"[validate] ERROR: Could not create SQLMesh context: {e}")
         return {}
@@ -109,8 +109,8 @@ def get_model_schemas(silver_schema: str = "silver") -> dict[str, ModelSchema]:
     try:
         from sqlmesh import Context
         project_root = Path(__file__).parent.parent
-        sqlmesh_path = project_root / "sqlmesh"
-        ctx = Context(paths=str(sqlmesh_path))
+        transform_path = project_root / "transform"
+        ctx = Context(paths=str(transform_path))
     except Exception as e:
         print(f"[validate] ERROR: Could not create SQLMesh context: {e}")
         return {}

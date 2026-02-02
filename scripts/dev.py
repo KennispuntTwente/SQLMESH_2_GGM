@@ -29,8 +29,8 @@ from config import load_config
 
 load_config()
 
-# Import constants from dlt folder
-sys.path.insert(0, str(Path(__file__).parent.parent / "dlt"))
+# Import constants from ingest folder
+sys.path.insert(0, str(Path(__file__).parent.parent / "ingest"))
 from constants import DESTINATION_TO_GATEWAY
 
 
@@ -142,9 +142,9 @@ def main() -> None:
         "DESTINATION__DUCKDB__CREDENTIALS": "ggm_dev.db",
     }
     # Set DLT_PROJECT_DIR so dlt finds its .dlt/ config
-    env["DLT_PROJECT_DIR"] = str(project_root / "dlt")
+    env["DLT_PROJECT_DIR"] = str(project_root / "ingest")
     subprocess.run(
-        [sys.executable, str(project_root / "dlt" / "pipeline.py"), "--dest", args.dest],
+        [sys.executable, str(project_root / "ingest" / "pipeline.py"), "--dest", args.dest],
         cwd=project_root,
         check=True,
         env=env,
@@ -163,7 +163,7 @@ def main() -> None:
         _get_sqlmesh_command()
         + [
             "-p",
-            "sqlmesh",
+            "transform",
             "--gateway",
             gateway,
             "plan",
@@ -177,7 +177,7 @@ def main() -> None:
     )
     
     print(
-        "[dev] Done! Run 'uv run sqlmesh -p sqlmesh --gateway %s ui' to explore."
+        "[dev] Done! Run 'uv run sqlmesh -p transform --gateway %s ui' to explore."
         % gateway
     )
 

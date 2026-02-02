@@ -14,8 +14,8 @@ Features:
 - Dry-run mode to preview generated models
 
 Usage:
-    python scripts/ddl_to_sqlmesh.py --ddl path/to/ddl.sql --output-dir sqlmesh/models/silver
-    python scripts/ddl_to_sqlmesh.py --ddl-dir path/to/ddl/folder --output-dir sqlmesh/models/silver
+    python scripts/ddl_to_sqlmesh.py --ddl path/to/ddl.sql --output-dir transform/models/silver
+    python scripts/ddl_to_sqlmesh.py --ddl-dir path/to/ddl/folder --output-dir transform/models/silver
     python scripts/ddl_to_sqlmesh.py --ddl path/to/ddl.sql --dry-run  # Preview output
 """
 from __future__ import annotations
@@ -421,19 +421,19 @@ def main() -> None:
         epilog="""
 Examples:
     # Convert a single DDL file
-    python scripts/ddl_to_sqlmesh.py --ddl path/to/schema.sql --output-dir sqlmesh/models/silver
+    python scripts/ddl_to_sqlmesh.py --ddl path/to/schema.sql --output-dir transform/models/silver
     
     # Convert all DDL files in a directory
-    python scripts/ddl_to_sqlmesh.py --ddl-dir path/to/ddl/ --output-dir sqlmesh/models/silver
+    python scripts/ddl_to_sqlmesh.py --ddl-dir path/to/ddl/ --output-dir transform/models/silver
     
     # Preview generated models without writing
     python scripts/ddl_to_sqlmesh.py --ddl path/to/schema.sql --dry-run
     
     # Convert specific tables only
-    python scripts/ddl_to_sqlmesh.py --ddl path/to/schema.sql --output-dir sqlmesh/models/silver --tables BESCHIKKING CLIENT
+    python scripts/ddl_to_sqlmesh.py --ddl path/to/schema.sql --output-dir transform/models/silver --tables BESCHIKKING CLIENT
     
     # Auto-discover DDL files and generate models
-    python scripts/ddl_to_sqlmesh.py --output-dir sqlmesh/models/silver
+    python scripts/ddl_to_sqlmesh.py --output-dir transform/models/silver
         """
     )
     parser.add_argument(
