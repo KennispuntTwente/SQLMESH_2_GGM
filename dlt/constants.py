@@ -1,7 +1,7 @@
-"""Central configuration constants for the GGM pipeline.
+"""Central constants for the GGM pipeline.
 
-All destination and gateway options are defined here to ensure consistency
-across the codebase.
+Pure constants only — no configuration reading here.
+All configuration is handled by the config/ module.
 """
 
 from __future__ import annotations
@@ -44,6 +44,12 @@ SQLMESH_GATEWAYS = [
 ]
 
 # ============================================================================
+# DLT Backends
+# ============================================================================
+# Available backends for dlt sql_database source.
+DLT_BACKENDS = ["auto", "sqlalchemy", "pyarrow", "pandas", "connectorx"]
+
+# ============================================================================
 # Destination to Gateway Mapping
 # ============================================================================
 # Maps dlt destinations to SQLMesh gateways for auto-detection.
@@ -71,13 +77,6 @@ DLT_DESTINATION_ALIASES = {
 def normalize_dlt_destination(destination: str) -> str:
     """Convert user-friendly destination name to dlt's actual destination type."""
     return DLT_DESTINATION_ALIASES.get(destination, destination)
-
-
-# ============================================================================
-# Defaults
-# ============================================================================
-DEFAULT_DESTINATION = "postgres"
-DEFAULT_DATASET = "raw"
 
 
 def get_gateway_for_destination(destination: str) -> str:

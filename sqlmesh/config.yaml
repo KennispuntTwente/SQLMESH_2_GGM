@@ -1,7 +1,5 @@
-# SQLMesh project configuration
-# See: https://sqlmesh.readthedocs.io/en/stable/guides/configuration/
-#
-# All gateways use the same env vars as dlt: DESTINATION__<TYPE>__CREDENTIALS__*
+# Alle configuratie gebeurt via .env — zie .env.example
+# Dit bestand bij voorkeur niet bewerken
 
 gateways:
   # Local development with PostgreSQL (default)
@@ -41,10 +39,8 @@ gateways:
       password: {{ env_var('DESTINATION__MSSQL__CREDENTIALS__PASSWORD', 'GGM_Dev123!') }}
       driver: pyodbc
       driver_name: {{ env_var('DESTINATION__MSSQL__CREDENTIALS__DRIVER', 'ODBC Driver 18 for SQL Server') }}
-      # Note: env_var returns strings, but trust_server_certificate needs boolean
-      # Use Jinja conditional to output YAML boolean value
-      # Avoid SQLMESH__ prefix as SQLMesh treats those as config overrides
-      trust_server_certificate: {% if env_var('GGM_MSSQL_TRUST_SERVER_CERTIFICATE', 'true').lower() in ('true', '1', 'yes') %}true{% else %}false{% endif %}
+      # Unified trust certificate setting (used by both dlt and SQLMesh)
+      trust_server_certificate: {% if env_var('GGM_TRUST_SERVER_CERTIFICATE', 'true').lower() in ('true', '1', 'yes') %}true{% else %}false{% endif %}
 
   # MySQL
   mysql:

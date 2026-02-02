@@ -4,17 +4,15 @@ Uses dlt's native functionality - _dlt_load_id is added automatically
 during the normalize phase. Uses pyarrow for performance when available.
 
 Configuration:
-- Set GGM_DESTINATION env var to change default target
-- Or use --dest CLI argument to override
-- Set GGM_DATASET env var to change raw dataset/schema (default: raw)
-- Or use --dataset CLI argument to override
-- Set GGM_ROW_LIMIT env var to limit rows extracted per table (for dev/testing)
-- Set GGM_DLT_BACKEND to change extraction backend: auto, sqlalchemy, pyarrow, pandas, connectorx
+- All settings are read from environment variables via the config module
+- See .env.example for the full list of configuration options
 
-Oracle Configuration (optional):
-- ORACLE_THICK_MODE=1 to enable Oracle Instant Client (thick mode)
-- ORACLE_CLIENT_LIB_DIR=/path/to/instantclient for thick mode library path
-- TNS_ADMIN=/path/to/tnsnames for TNS resolution
+Usage:
+    # From command line (standalone):
+    python -m dlt.pipeline --dest postgres
+
+    # Or via orchestrator:
+    uv run pipeline --dest postgres
 """
 
 from __future__ import annotations
@@ -27,34 +25,44 @@ from pathlib import Path
 # Add parent directory to path to allow imports when running directly
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Load unified config (reads .env)
+from config import (
+    load_config,
+    DESTINATION,
+    DATASET,
+    ROW_LIMIT,
+    DLT_BACKEND,
+    get_oracle_thick_mode,
+    get_oracle_client_lib_dir,
+)
+
+load_config()
+
 # Import dlt library (using full package name to avoid confusion)
 import dlt as dlt_lib
 from dlt.sources.sql_database import sql_database
 
 # Import local constants
 from constants import (
-    DEFAULT_DESTINATION,
-    DEFAULT_DATASET,
     DLT_DESTINATIONS,
+    DLT_BACKENDS,
     normalize_dlt_destination,
 )
 
-DLT_BACKENDS = ["auto", "sqlalchemy", "pyarrow", "pandas", "connectorx"]
-
 
 def _init_oracle_thick_mode() -> None:
-    """Initialize Oracle thick mode if ORACLE_THICK_MODE=1 is set.
+    """Initialize Oracle thick mode if configured.
 
     Thick mode is optional and only needed for:
     - Oracle Advanced Security (encryption, Kerberos)
     - External authentication
     - Some legacy features
     """
-    if os.environ.get("ORACLE_THICK_MODE", "").lower() in ("1", "true", "yes"):
+    if get_oracle_thick_mode():
         try:
             import oracledb
 
-            lib_dir = os.environ.get("ORACLE_CLIENT_LIB_DIR")
+            lib_dir = get_oracle_client_lib_dir()
             oracledb.init_oracle_client(lib_dir=lib_dir)
             print(f"[oracle] Thick mode enabled (lib_dir={lib_dir})")
         except Exception as e:
@@ -77,35 +85,6 @@ SOURCE_TABLES = [
 ]
 
 
-def get_default_destination() -> str:
-    return os.environ.get("GGM_DESTINATION", DEFAULT_DESTINATION)
-
-
-def get_default_dataset() -> str:
-    return os.environ.get("GGM_DATASET", DEFAULT_DATASET)
-
-
-def get_default_backend() -> str:
-    return os.environ.get("GGM_DLT_BACKEND", "auto")
-
-
-def get_row_limit() -> int | None:
-    """Get optional row limit from GGM_ROW_LIMIT env var.
-
-    Returns None if not set or invalid, otherwise the integer limit.
-    Useful for development/testing with large source tables.
-    """
-    limit_str = os.environ.get("GGM_ROW_LIMIT", "").strip()
-    if not limit_str:
-        return None
-    try:
-        limit = int(limit_str)
-        return limit if limit > 0 else None
-    except ValueError:
-        print(f"[dlt] Warning: Invalid GGM_ROW_LIMIT '{limit_str}', ignoring")
-        return None
-
-
 def _resolve_backend(backend: str | None) -> str:
     """Resolve dlt sql_database backend with a safe fallback.
 
@@ -113,7 +92,7 @@ def _resolve_backend(backend: str | None) -> str:
     fail to load due to missing system runtimes or path-length limitations.
     Using the SQLAlchemy backend is slower but avoids PyArrow.
     """
-    requested = (backend or get_default_backend()).strip().lower()
+    requested = (backend or DLT_BACKEND).strip().lower()
     if requested not in DLT_BACKENDS:
         raise ValueError(
             f"Invalid backend '{requested}'. Expected one of: {', '.join(DLT_BACKENDS)}"
@@ -194,11 +173,21 @@ def run_pipeline(
     destination: str | None = None,
     dataset_name: str | None = None,
     backend: str | None = None,
+    row_limit: int | None = None,
 ) -> dlt_lib.Pipeline:
-    """Run dlt pipeline: source -> raw layer."""
-    destination = destination or get_default_destination()
-    dataset_name = dataset_name or get_default_dataset()
+    """Run dlt pipeline: source -> raw layer.
+    
+    Args:
+        destination: Target destination (default: from config)
+        dataset_name: Schema name for raw layer (default: from config)
+        backend: Extraction backend (default: from config)
+        row_limit: Optional row limit per table (default: from config)
+    """
+    # Use config module values as defaults
+    destination = destination or DESTINATION
+    dataset_name = dataset_name or DATASET
     backend = _resolve_backend(backend)
+    row_limit = row_limit if row_limit is not None else ROW_LIMIT
 
     # Normalize destination name (e.g., 'mysql' -> 'sqlalchemy')
     dlt_destination = normalize_dlt_destination(destination)
@@ -216,7 +205,6 @@ def run_pipeline(
     )
 
     # Check for optional row limit (useful for dev/testing)
-    row_limit = get_row_limit()
     if row_limit:
         print(f"[dlt] Row limit enabled: {row_limit} rows per table")
 
@@ -242,21 +230,32 @@ def main() -> None:
         "--dest",
         default=None,
         choices=DLT_DESTINATIONS,
-        help="Destination (default: $GGM_DESTINATION or postgres)",
+        help=f"Destination (default: $GGM_DESTINATION or {DESTINATION})",
     )
     parser.add_argument(
         "--dataset",
         default=None,
-        help="Dataset/schema name (default: $GGM_DATASET or raw)",
+        help=f"Dataset/schema name (default: $GGM_DATASET or {DATASET})",
     )
     parser.add_argument(
         "--backend",
         default=None,
         choices=DLT_BACKENDS,
-        help="Extraction backend (default: $GGM_DLT_BACKEND or auto). Choices: auto, sqlalchemy, pyarrow, pandas, connectorx",
+        help=f"Extraction backend (default: $GGM_DLT_BACKEND or {DLT_BACKEND})",
+    )
+    parser.add_argument(
+        "--row-limit",
+        type=int,
+        default=None,
+        help="Limit rows per table for test runs",
     )
     args = parser.parse_args()
-    run_pipeline(destination=args.dest, dataset_name=args.dataset, backend=args.backend)
+    run_pipeline(
+        destination=args.dest,
+        dataset_name=args.dataset,
+        backend=args.backend,
+        row_limit=args.row_limit,
+    )
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 """Run the full GGM pipeline: source -> dlt -> SQLMesh -> done.
 
 A simple one-liner to run the complete pipeline with configurable options.
-Supports environment variables and command line arguments.
+All configuration is read from environment variables via the config module.
 
 Usage:
     uv run pipeline --dest postgres                    # Full pipeline to PostgreSQL
@@ -11,9 +11,7 @@ Usage:
     uv run pipeline --dest postgres --skip-sqlmesh     # dlt only
     uv run pipeline --dest postgres --dry-run          # Preview what would run
 
-Environment variables (or set in .env):
-    GGM_GATEWAY      - SQLMesh gateway override (default: auto-detected from --dest)
-    GGM_DATASET      - Dataset/schema name for raw layer (default: raw)
+See .env.example for the full list of configuration options.
 """
 
 from __future__ import annotations
@@ -25,27 +23,29 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Load .env file if it exists
-try:
-    from dotenv import load_dotenv
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-    load_dotenv()
-except ImportError:
-    pass  # python-dotenv not required if env vars are set directly
+# Load unified config (reads .env)
+from config import (
+    load_config,
+    DESTINATION,
+    DATASET,
+    GATEWAY,
+    DLT_BACKEND,
+    ROW_LIMIT,
+)
 
-# Import constants - add dlt folder to path
+load_config()
+
+# Import constants
 sys.path.insert(0, str(Path(__file__).parent.parent / "dlt"))
 from constants import (
     DLT_DESTINATIONS,
+    DLT_BACKENDS,
     SQLMESH_GATEWAYS,
-    DEFAULT_DATASET,
     get_gateway_for_destination,
 )
-
-
-def get_env(key: str, default: str | None) -> str | None:
-    """Get environment variable with fallback."""
-    return os.environ.get(key, default)
 
 
 def _get_python_command() -> list[str]:
@@ -90,11 +90,6 @@ def _get_sqlmesh_command() -> list[str]:
     return ["sqlmesh"]
 
 
-def _detect_gateway(destination: str) -> str:
-    """Auto-detect SQLMesh gateway from dlt destination."""
-    return get_gateway_for_destination(destination)
-
-
 def run_command(cmd: list[str], dry_run: bool = False, verbose: bool = False) -> int:
     """Run a command, optionally in dry-run mode."""
     cmd_str = " ".join(cmd)
@@ -113,6 +108,7 @@ def run_dlt(
     destination: str,
     dataset: str,
     backend: str | None,
+    row_limit: int | None,
     dry_run: bool,
     verbose: bool,
 ) -> int:
@@ -133,6 +129,8 @@ def run_dlt(
     ]
     if backend:
         cmd.extend(["--backend", backend])
+    if row_limit:
+        cmd.extend(["--row-limit", str(row_limit)])
 
     if dry_run:
         cmd_str = " ".join(cmd)
@@ -181,10 +179,10 @@ Examples:
         "-d",
         "--dest",
         "--destination",
-        required=True,
+        default=None,
         choices=DLT_DESTINATIONS,
         metavar="DEST",
-        help=f"dlt destination (required). Choices: {', '.join(DLT_DESTINATIONS)}",
+        help=f"dlt destination (default: {DESTINATION}). Choices: {', '.join(DLT_DESTINATIONS)}",
     )
     parser.add_argument(
         "-g",
@@ -199,14 +197,21 @@ Examples:
         "--dataset",
         default=None,
         metavar="NAME",
-        help="Dataset/schema name for raw layer (env: GGM_DATASET, default: raw)",
+        help=f"Dataset/schema name for raw layer (default: {DATASET})",
     )
     parser.add_argument(
         "--dlt-backend",
         default=None,
-        choices=["auto", "sqlalchemy", "pyarrow", "pandas", "connectorx"],
+        choices=DLT_BACKENDS,
         metavar="BACKEND",
-        help="dlt extraction backend (env: GGM_DLT_BACKEND, default: auto)",
+        help=f"dlt extraction backend (default: {DLT_BACKEND})",
+    )
+    parser.add_argument(
+        "--row-limit",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Limit rows per table for test runs",
     )
 
     # Skip options
@@ -244,14 +249,12 @@ Examples:
 
     args = parser.parse_args()
 
-    # Resolve configuration
-    destination = args.dest  # Required, always set
-    # Auto-detect gateway from destination if not specified
-    gateway = (
-        args.gateway or get_env("GGM_GATEWAY", None) or _detect_gateway(destination)
-    )
-    dataset = args.dataset or get_env("GGM_DATASET", DEFAULT_DATASET)
-    dlt_backend = args.dlt_backend or get_env("GGM_DLT_BACKEND", "auto")
+    # Resolve configuration from args > config module
+    destination = args.dest or DESTINATION
+    gateway = args.gateway or GATEWAY or get_gateway_for_destination(destination)
+    dataset = args.dataset or DATASET
+    dlt_backend = args.dlt_backend or DLT_BACKEND
+    row_limit = args.row_limit if args.row_limit is not None else ROW_LIMIT
     auto_apply = not args.no_auto_apply
 
     # Print configuration
@@ -265,6 +268,8 @@ Examples:
     print(f"  dlt         : {'skip' if args.skip_dlt else 'run'}")
     print(f"  SQLMesh     : {'skip' if args.skip_sqlmesh else 'run'}")
     print(f"  Auto-apply  : {auto_apply}")
+    if row_limit:
+        print(f"  Row limit   : {row_limit}")
     print("=" * 60)
 
     if args.skip_dlt and args.skip_sqlmesh:
@@ -273,7 +278,7 @@ Examples:
 
     # Run dlt
     if not args.skip_dlt:
-        rc = run_dlt(destination, dataset, dlt_backend, args.dry_run, args.verbose)
+        rc = run_dlt(destination, dataset, dlt_backend, row_limit, args.dry_run, args.verbose)
         if rc != 0:
             print(f"\n[!] dlt failed with exit code {rc}")
             return rc

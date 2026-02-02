@@ -21,6 +21,14 @@ import sys
 import time
 from pathlib import Path
 
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# Load unified config (reads .env)
+from config import load_config
+
+load_config()
+
 # Import constants from dlt folder
 sys.path.insert(0, str(Path(__file__).parent.parent / "dlt"))
 from constants import DESTINATION_TO_GATEWAY
@@ -104,16 +112,32 @@ def main() -> None:
     print("[dev] dlt: Oracle -> %s raw layer..." % args.dest)
     
     # Set credentials matching docker-compose.yml
+    # These override anything in .env for the dev environment
     env = {
         **os.environ,
         # Oracle source
         "SOURCES__SQL_DATABASE__CREDENTIALS": "oracle+oracledb://appuser:apppass@localhost:1521/?service_name=ggm",
         # Postgres destination
-        "DESTINATION__POSTGRES__CREDENTIALS": "postgresql://ggm:ggm_dev@localhost:5432/ggm_dev",
+        "DESTINATION__POSTGRES__CREDENTIALS__HOST": "localhost",
+        "DESTINATION__POSTGRES__CREDENTIALS__PORT": "5432",
+        "DESTINATION__POSTGRES__CREDENTIALS__DATABASE": "ggm_dev",
+        "DESTINATION__POSTGRES__CREDENTIALS__USERNAME": "ggm",
+        "DESTINATION__POSTGRES__CREDENTIALS__PASSWORD": "ggm_dev",
         # MSSQL destination
-        "DESTINATION__MSSQL__CREDENTIALS": "mssql+pyodbc://sa:GGM_Dev123!@localhost:1433/ggm_dev?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes",
-        # MySQL destination (via sqlalchemy destination)
-        "DESTINATION__SQLALCHEMY__CREDENTIALS": "mysql+pymysql://root:ggm_dev@localhost:3306/ggm_dev",
+        "DESTINATION__MSSQL__CREDENTIALS__HOST": "localhost",
+        "DESTINATION__MSSQL__CREDENTIALS__PORT": "1433",
+        "DESTINATION__MSSQL__CREDENTIALS__DATABASE": "ggm_dev",
+        "DESTINATION__MSSQL__CREDENTIALS__USERNAME": "sa",
+        "DESTINATION__MSSQL__CREDENTIALS__PASSWORD": "GGM_Dev123!",
+        "DESTINATION__MSSQL__CREDENTIALS__DRIVER": "ODBC Driver 18 for SQL Server",
+        "GGM_TRUST_SERVER_CERTIFICATE": "true",
+        # MySQL destination (via sqlalchemy)
+        "DESTINATION__SQLALCHEMY__CREDENTIALS__HOST": "localhost",
+        "DESTINATION__SQLALCHEMY__CREDENTIALS__PORT": "3306",
+        "DESTINATION__SQLALCHEMY__CREDENTIALS__DATABASE": "ggm_dev",
+        "DESTINATION__SQLALCHEMY__CREDENTIALS__USERNAME": "root",
+        "DESTINATION__SQLALCHEMY__CREDENTIALS__PASSWORD": "ggm_dev",
+        "DESTINATION__SQLALCHEMY__CREDENTIALS__DRIVERNAME": "mysql+pymysql",
         # DuckDB
         "DESTINATION__DUCKDB__CREDENTIALS": "ggm_dev.db",
     }
@@ -130,6 +154,11 @@ def main() -> None:
     gateway = DESTINATION_TO_GATEWAY.get(args.dest, "local")
     
     sqlmesh_env = {**os.environ}
+    # Pass through destination credentials for SQLMesh
+    for key, value in env.items():
+        if key.startswith("DESTINATION__") or key.startswith("GGM_"):
+            sqlmesh_env[key] = value
+    
     subprocess.run(
         _get_sqlmesh_command()
         + ["-p", "sqlmesh", "--gateway", gateway, "plan", "--auto-apply"],
